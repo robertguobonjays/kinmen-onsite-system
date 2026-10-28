@@ -1,0 +1,7 @@
+{
+  "name": "kinmen-onsite-system",
+  "private": true,
+  "description": "金門小三通駐點維運系統（Google Apps Script）",
+  "scripts": { "test": "node test/server.test.js && node test/ui.test.js" },
+  "devDependencies": { "jsdom": "24.1.3" }
+}
