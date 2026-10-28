@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg: #f4f6f9; --card: #fff; --text: #1f2933; --muted: #6b7785; --line: #dde3ea; --primary: #0b5cad; --primary-weak: #e6f0fb; --ok: #1e8e3e; --ok-weak: #e6f4ea; --bad: #c62828; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; font-size: 16px; line-height: 1.6; }
+  header { background: var(--primary); color: #fff; padding: 14px 16px; }
+  header h1 { margin: 0; font-size: 18px; }
+  header div { font-size: 13px; opacity: .9; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  label.f { display: block; margin: 14px 0 4px; font-size: 14px; color: var(--muted); }
+  label.f b { color: var(--bad); }
+  input[type=text], input[type=tel], textarea, select { width: 100%; font-family: inherit; font-size: 16px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  textarea { min-height: 110px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips label { border: 1px solid var(--line); border-radius: 18px; padding: 6px 14px; cursor: pointer; }
+  .chips input { display: none; }
+  .chips label:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); color: var(--primary); font-weight: bold; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 6px 0; cursor: pointer; }
+  .opt:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); }
+  .btn { width: 100%; border: 0; background: var(--primary); color: #fff; padding: 13px; border-radius: 10px; font-size: 17px; font-family: inherit; cursor: pointer; margin-top: 18px; }
+  .btn:disabled { opacity: .5; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .hp { position: absolute; left: -9999px; }
+  .done { text-align: center; }
+  .done .id { font-size: 26px; font-weight: bold; color: var(--ok); margin: 8px 0; }
+  #err { color: var(--bad); margin-top: 10px; }
+</style>
+</head>
+<body>
+<header><h1 id="ttl">系統叫修通報</h1><div id="sub">金門小三通票務系統</div></header>
+<main id="main">
+  <div class="card" id="hot">緊急狀況請直接打電話或 LINE：<b id="hotline">02-7733-5686</b></div>
+  <div class="card" id="form">
+    <label class="f">您的姓名 <b>*</b></label><input type="text" id="rName" maxlength="30" autocomplete="name">
+    <label class="f">單位</label><input type="text" id="rUnit" maxlength="40" placeholder="例：浯江售票組">
+    <label class="f">聯絡電話</label><input type="tel" id="rPhone" maxlength="30">
+    <label class="f">哪個設備或系統有問題？ <b>*</b></label><div class="chips" id="eqs"></div>
+    <label class="f">位置／編號</label><input type="text" id="rLoc" maxlength="60" placeholder="例：A2 櫃台、自助機 3 號、閘門 2">
+    <label class="f">發生什麼問題？ <b>*</b></label><textarea id="rSym" maxlength="1000" placeholder="看到什麼畫面、在哪個步驟、影響多少旅客"></textarea>
+    <label class="f">影響程度 <b>*</b></label>
+    <label class="opt"><input type="radio" name="imp" value="all"><div><b>完全不能售票或驗票</b><div class="muted">駐點人員會在 30 分鐘內回覆</div></div></label>
+    <label class="opt"><input type="radio" name="imp" value="part" checked><div><b>部分設備有問題，其他還能用</b><div class="muted">1 小時內回覆</div></div></label>
+    <label class="opt"><input type="radio" name="imp" value="later"><div><b>不急，可以排時間處理</b><div class="muted">2 小時內回覆</div></div></label>
+    <label class="f">照片（可多張，選填）</label><input type="file" id="rPh" accept="image/*" multiple>
+    <input type="text" id="rWeb" class="hp" tabindex="-1" autocomplete="off">
+    <button class="btn" id="go" onclick="send()">送出報修</button>
+    <div id="err"></div>
+  </div>
+</main>
+<script>
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function call(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (res, rej) { google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn].apply(null, args); });
+}
+function compress(file) {
+  return new Promise(function (res, rej) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var r = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        res(c.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = rej; img.src = fr.result;
+    };
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+call('api_publicInfo').then(function (i) {
+  $('sub').textContent = i.name;
+  $('hotline').textContent = i.hotline;
+  $('eqs').innerHTML = i.equip.map(function (e) { return '<label><input type="radio" name="eq" value="' + esc(e) + '"><span>' + esc(e) + '</span></label>'; }).join('');
+});
+function send() {
+  var eq = document.querySelector('input[name=eq]:checked'), imp = document.querySelector('input[name=imp]:checked');
+  $('err').textContent = '';
+  if (!$('rName').value.trim()) return ($('err').textContent = '請填寫您的姓名');
+  if (!eq) return ($('err').textContent = '請選擇哪個設備或系統有問題');
+  if (!$('rSym').value.trim()) return ($('err').textContent = '請描述發生什麼問題');
+  $('go').disabled = true; $('go').textContent = '送出中…';
+  var files = Array.prototype.slice.call($('rPh').files || []).slice(0, 5);
+  files.reduce(function (p, f) {
+    return p.then(function (ids) { return compress(f).then(function (d) { return call('api_publicUpload', f.name.replace(/\.\w+$/, '') + '.jpg', d); }).then(function (id) { ids.push(id); return ids; }); });
+  }, Promise.resolve([])).then(function (ids) {
+    return call('api_publicReport', { reporter: $('rName').value, unit: $('rUnit').value, phone: $('rPhone').value, equip: eq.value, loc: $('rLoc').value,
+      symptom: $('rSym').value, impact: imp ? imp.value : 'part', photos: ids, website: $('rWeb').value });
+  }).then(function (id) {
+    $('form').innerHTML = '<div class="done"><div>已送出，駐點人員會盡快處理</div><div class="id">' + esc(id) + '</div><div class="muted">這是您的報修編號，詢問進度時請提供。</div>' +
+      '<button class="btn" onclick="location.reload()">再報一筆</button></div>';
+  }).catch(function (e) {
+    $('err').textContent = (e && e.message ? e.message : String(e)) + '　（也可以直接打電話或 LINE）';
+    $('go').disabled = false; $('go').textContent = '送出報修';
+  });
+}
+</script>
+</body>
+</html>

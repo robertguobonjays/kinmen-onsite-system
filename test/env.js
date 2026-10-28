@@ -43,20 +43,36 @@ const ss = {
 const mails = [];
 let ACTIVE = 'boss@corp.com';
 const props = {};
+const cache = {};
+const folders = {};
+let fileSeq = 0;
+function makeFolder(id, name) {
+  if (folders[id]) return folders[id];
+  const f = { id, name, subs: {}, files: [], getId: () => id,
+    getFoldersByName: n => { const x = f.subs[n]; return { hasNext: () => !!x, next: () => x }; },
+    createFolder: n => (f.subs[n] = makeFolder(id + '/' + n, n)),
+    createFile: b => { const fid = 'FILE' + String(++fileSeq).padStart(16, '0'); f.files.push(b.n); return { getId: () => fid, getUrl: () => 'https://drive.google.com/file/d/' + fid, setSharing() { } }; } };
+  return (folders[id] = f);
+}
 const ctx = {
   console, Date: FDate, Math, JSON, String, Number, Object, Array, Error, RegExp, parseInt,
   SpreadsheetApp: { getActiveSpreadsheet: () => ss, getUi: () => { throw new Error('no ui'); } },
   Utilities: {
     formatDate: fmt, base64Decode: s => Buffer.from(s, 'base64'),
+    base64Encode: b => Buffer.from(b).toString('base64'),
+    computeDigest: (alg, str) => Array.from(require('crypto').createHash('sha256').update(str, 'utf8').digest()),
+    DigestAlgorithm: { SHA_256: 'SHA_256' }, Charset: { UTF_8: 'UTF_8' },
+    getUuid: () => require('crypto').randomUUID(),
     newBlob: (b, t, n) => ({ b, t, n })
   },
   Session: { getActiveUser: () => ({ getEmail: () => ACTIVE }), getEffectiveUser: () => ({ getEmail: () => 'boss@corp.com' }) },
   MailApp: { sendEmail: o => mails.push(o) },
   LockService: { getScriptLock: () => ({ waitLock() { }, releaseLock() { } }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, getProperties: () => ({ ...props }), deleteProperty: k => delete props[k] }) },
+  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
   DriveApp: {
-    createFolder: n => ({ getId: () => 'FOLDER1', createFile: b => ({ getId: () => 'FILE' + mails.length, setSharing() { } }) }),
-    getFolderById: id => ({ getId: () => id, createFile: b => ({ getId: () => 'FILEX', setSharing() { } }) }),
+    createFolder: n => makeFolder('FOLDER1', n),
+    getFolderById: id => { if (id === 'BAD') throw new Error('no access'); return makeFolder(id, 'root'); },
     getFileById: id => ({ moveTo() { } }), Access: {}, Permission: {}
   },
   ScriptApp: {
@@ -74,4 +90,4 @@ vm.createContext(ctx);
 vm.runInContext(code, ctx);
 const G = ctx;
 function setNow(s) { FAKE_NOW = new RealDate(s.replace(' ', 'T') + ':00+08:00').getTime(); }
-module.exports = { G, sheets, mails, props, setNow, as: e => { ACTIVE = e; } };
+module.exports = { G, sheets, mails, props, cache, folders, setNow, as: e => { ACTIVE = e; } };

@@ -1,22 +1,23 @@
 /**
- * 金門小三通 駐點維運系統 V1
+ * 金門小三通 駐點維運系統 V2
  * Google Apps Script（綁定 Google Sheet 當資料庫）
- * 功能：排班、叫修回報＋維護工作紀錄、定期巡檢、SOP／教育訓練、主管管理（人員、設定、月維護報告）
+ * 功能：帳號登入與權限、排班（登記期間＋系統預排）、叫修回報（含機關免登入報修頁）＋維護工作紀錄、
+ *       定期巡檢、SOP／教育訓練（可上傳附件）、管理（帳號、設定、巡檢項目、月維護報告）
  * 依據：金廈(泉)票務系統暨服務採購案_系統保固與維護計畫書V2（附表一～四、陸、玖）
  */
 
 var TZ = 'Asia/Taipei';
 
 var SHEETS = {
-  '人員': ['Email', '姓名', '角色', '電話', '啟用'],
+  '人員': ['Email', '帳號', '姓名', '角色', '電話', '啟用', '排班', '密碼雜湊', '鹽', '需改密碼', '建立時間', '最後登入'],
   '設定': ['項目', '值', '說明'],
   '班表': ['日期', 'Email', '姓名', '手動', '備註', '更新時間'],
-  '班表月份': ['月份', '狀態', '發布時間', '發布人'],
+  '班表月份': ['月份', '狀態', '發布時間', '發布人', '登記開始', '登記截止', '登記異動', '預排時間', '預排通知'],
   '不可上班': ['日期', 'Email', '姓名', '原因', '登記時間'],
-  '填寫確認': ['月份', 'Email', '姓名', '確認時間'],
+  '填寫確認': ['月份', 'Email', '姓名', '確認時間', '說明'],
   '叫修單': ['編號', '通報時間', '通報人', '通報單位', '通報電話', '設備系統', '位置編號', '故障現象', '等級',
     '回覆期限', '排除期限', '回覆時間', '回覆人', '處理過程', '排除時間', '備品', '機關確認人', '狀態',
-    '照片', '事件報告', '建立者', '建立者Email', '更新時間', '已提醒'],
+    '照片', '事件報告', '建立者', '建立者Email', '更新時間', '已提醒', '來源'],
   '工作紀錄': ['ID', '日期', '時間', '類別', '內容摘要', '處理結果', '處理人', '關聯編號'],
   '巡檢項目': ['ID', '頻率', '區域', '檢查項目', '排序', '啟用'],
   '巡檢紀錄': ['紀錄ID', '頻率', '期別', '巡檢時間', '巡檢人Email', '巡檢人', '項目ID', '區域', '檢查項目', '結果', '說明', '機關確認人'],
@@ -27,16 +28,20 @@ var SHEETS = {
 var DEFAULT_SETTINGS = [
   ['系統名稱', '金門小三通駐點維運系統', '顯示在網頁標題與信件主旨'],
   ['上班時間', '08:00～17:30', '每日一班、一人，全年無休'],
-  ['不可上班日登記截止日', '20', '每月幾號前要登記「下個月」哪幾天不能上班'],
+  ['登記開始日', '15', '每月幾號開始登記「下個月」不能上班的日子（各月可在班表頁另外調整）'],
+  ['不可上班日登記截止日', '20', '每月幾號截止（截止隔天系統自動預排下個月班表）'],
   ['最多連續上班天數', '6', '自動排班時，同一人最多連續上幾天'],
   ['偏好連續天數', '2', '自動排班時，盡量讓同一人連上幾天再換人（1＝每天輪替）'],
   ['巡檢逾期提醒時間', '11', '幾點還沒做完當日巡檢就寄信提醒（24 小時制）'],
   ['明日值班提醒時間', '17', '幾點寄信提醒明天值班的人'],
   ['保固期滿日', '', 'yyyy-MM-dd，用來提醒「保固期滿前」檢查項目（可空白）'],
-  ['系統網址', '', '部署後的網頁網址，信件裡的連結會用這個（空白則自動抓）'],
-  ['檔案資料夾ID', '', '照片與月報存放的雲端硬碟資料夾（setup 自動建立）']
+  ['保固服務專線', '02-7733-5686，或直接 LINE／群組通報', '非駐點時段的叫修管道，會顯示在報修頁與信件'],
+  ['系統網址', '', '部署後的網頁網址（/exec 結尾），信件裡的連結會用這個（空白則自動抓）'],
+  ['檔案資料夾ID', '1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1', '照片、月報、SOP 附件存放的雲端硬碟資料夾'],
+  ['登入有效天數', '14', '登入後幾天內不用重新登入']
 ];
 
+var ROLES = ['管理員', '主管', '駐點'];
 var EQUIP_LIST = ['售票櫃台', '自助機台', '閘門', '手持設備', '行李托運', '資訊看板', '線上售票／App', '後台', '機房', '其他'];
 
 var SLA = { // 分鐘：回覆期限、排除期限（保固計畫書 伍、三）
@@ -49,23 +54,26 @@ var FREQS = ['每日', '每週', '每月', '每季', '保固期滿前'];
 
 /* ============================== 網頁入口 ============================== */
 
-function doGet() {
+function doGet(e) {
   var s = getSettings_();
-  return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle(s['系統名稱'] || '駐點維運系統')
+  var page = e && e.parameter && e.parameter.p === 'report' ? 'Report' : 'Index';
+  return HtmlService.createHtmlOutputFromFile(page)
+    .setTitle(page === 'Report' ? '系統叫修通報' : (s['系統名稱'] || '駐點維運系統'))
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 function onOpen() {
   try {
     SpreadsheetApp.getUi().createMenu('駐點系統')
-      .addItem('① 初始化（建立工作表、範本資料、排程）', 'setup')
+      .addItem('① 初始化／升級（建立工作表、範本資料、排程）', 'setup')
       .addItem('② 重新安裝排程（寄信提醒）', 'installTriggers')
       .addToUi();
   } catch (e) { /* 非試算表介面時略過 */ }
 }
 
 /* ============================== 共用工具 ============================== */
+
+var HEAD_ = {};
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
@@ -113,6 +121,11 @@ function prevMonth_(month) {
   return y + '-' + (m < 10 ? '0' : '') + m;
 }
 
+function dayOf_(month, day) { // 某月第 day 天（超過月底取月底）
+  var days = monthDays_(month);
+  return days[Math.min(Math.max(1, day), days.length) - 1];
+}
+
 function cell_(v) {
   if (v instanceof Date) {
     return fmt_(v, 'HH:mm') === '00:00' ? fmt_(v, 'yyyy-MM-dd') : fmt_(v);
@@ -135,7 +148,15 @@ function readTable_(name) {
   return out;
 }
 
-function header_(name) { return SHEETS[name]; }
+function header_(name) { // 以工作表實際標題列為準（升級時新增的欄位會在最後面）
+  if (!HEAD_[name]) {
+    var s = sh_(name), lc = s.getLastColumn();
+    var h = lc ? s.getRange(1, 1, 1, lc).getValues()[0].map(String) : [];
+    while (h.length && !h[h.length - 1]) h.pop();
+    HEAD_[name] = h.length ? h : SHEETS[name];
+  }
+  return HEAD_[name];
+}
 
 function rowOf_(name, obj) {
   return header_(name).map(function (h) { var v = obj[h]; return v === undefined || v === null ? '' : String(v); });
@@ -199,27 +220,22 @@ function getSettings_() {
 
 function people_(includeInactive) {
   return readTable_('人員').map(function (p) {
-    return { email: String(p['Email']).trim().toLowerCase(), name: p['姓名'], role: p['角色'] || '駐點', phone: p['電話'], active: p['啟用'] !== 'N', _row: p._row };
+    var role = ROLES.indexOf(p['角色']) >= 0 ? p['角色'] : '駐點';
+    return {
+      email: String(p['Email']).trim().toLowerCase(), account: String(p['帳號'] || '').trim().toLowerCase(),
+      name: p['姓名'], role: role, phone: p['電話'], active: p['啟用'] !== 'N',
+      sched: p['排班'] ? p['排班'] === 'Y' : role === '駐點',
+      hash: p['密碼雜湊'], salt: p['鹽'], mustChange: p['需改密碼'] === 'Y', lastLogin: p['最後登入'], _row: p._row
+    };
   }).filter(function (p) { return p.email && (includeInactive || p.active); });
 }
 
-function staff_() { return people_().filter(function (p) { return p.role === '駐點'; }); }
-function admins_() { return people_().filter(function (p) { return p.role === '主管'; }); }
+function staff_() { return people_().filter(function (p) { return p.sched; }); }
+function admins_() { return people_().filter(function (p) { return p.role === '管理員' || p.role === '主管'; }); }
 function nameOf_(email) { var p = people_(true).filter(function (x) { return x.email === email; })[0]; return p ? p.name : email; }
 
-function me_() {
-  var email = String(Session.getActiveUser().getEmail() || '').toLowerCase();
-  if (!email) throw new Error('無法取得您的 Google 帳號，請用公司帳號登入後再開啟。');
-  var p = people_().filter(function (x) { return x.email === email; })[0];
-  if (!p) throw new Error('帳號 ' + email + ' 尚未加入系統，請聯絡主管在「人員」名單加入。');
-  p.isAdmin = p.role === '主管';
-  return p;
-}
-
-function requireAdmin_() {
-  var me = me_();
-  if (!me.isAdmin) throw new Error('這個功能只有主管可以使用。');
-  return me;
+function publicPerson_(p) {
+  return { email: p.email, account: p.account, name: p.name, role: p.role, phone: p.phone, active: p.active, sched: p.sched, lastLogin: p.lastLogin, hasPw: !!p.hash };
 }
 
 function appUrl_() {
@@ -230,16 +246,124 @@ function appUrl_() {
 
 function folder_() {
   var s = getSettings_(), id = s['檔案資料夾ID'];
-  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { } }
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { console.error('無法開啟資料夾 ' + id + '：' + e); } }
   var f = DriveApp.createFolder(s['系統名稱'] + '_檔案');
   setSetting_('檔案資料夾ID', f.getId());
   return f;
 }
 
+function subFolder_(name) {
+  var root = folder_(), it = root.getFoldersByName(name);
+  return it.hasNext() ? it.next() : root.createFolder(name);
+}
+
 function setSetting_(key, val) {
   var rows = readTable_('設定'), r = rows.filter(function (x) { return x['項目'] === key; })[0];
   if (r) updateObj_('設定', r._row, { '值': val });
-  else appendObj_('設定', { '項目': key, '值': val, '說明': '' });
+  else {
+    var d = DEFAULT_SETTINGS.filter(function (x) { return x[0] === key; })[0];
+    appendObj_('設定', { '項目': key, '值': val, '說明': d ? d[2] : '' });
+  }
+}
+
+/* ============================== 登入與權限 ============================== */
+
+function hash_(salt, pw) {
+  var v = salt + '|' + pw;
+  for (var i = 0; i < 200; i++) {
+    v = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, v + salt, Utilities.Charset.UTF_8));
+  }
+  return v;
+}
+
+function newSalt_() { return Utilities.getUuid().replace(/-/g, ''); }
+
+function tempPassword_() {
+  var c = 'abcdefghjkmnpqrstuvwxyz23456789', s = '';
+  for (var i = 0; i < 8; i++) s += c.charAt(Math.floor(Math.random() * c.length));
+  return s;
+}
+
+function checkPassword_(pw) {
+  if (!pw || String(pw).length < 6) throw new Error('密碼至少 6 個字');
+}
+
+function startSession_(p) {
+  var tk = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  var days = Number(getSettings_()['登入有效天數']) || 14;
+  PropertiesService.getScriptProperties().setProperty('sess_' + tk, JSON.stringify({ e: p.email, x: Date.now() + days * 86400000 }));
+  updateObj_('人員', p._row, { '最後登入': now_() });
+  return tk;
+}
+
+function sessionEmail_(tk) {
+  if (!tk || !/^[0-9a-f]{64}$/.test(String(tk))) return '';
+  var props = PropertiesService.getScriptProperties(), raw = props.getProperty('sess_' + tk);
+  if (!raw) return '';
+  try {
+    var s = JSON.parse(raw);
+    if (s.x < Date.now()) { props.deleteProperty('sess_' + tk); return ''; }
+    return s.e;
+  } catch (e) { return ''; }
+}
+
+function me_(tk) {
+  var email = sessionEmail_(tk);
+  if (!email) throw new Error('NEED_LOGIN');
+  var p = people_().filter(function (x) { return x.email === email; })[0];
+  if (!p) { PropertiesService.getScriptProperties().deleteProperty('sess_' + tk); throw new Error('NEED_LOGIN'); }
+  p.isAdmin = p.role === '管理員' || p.role === '主管';
+  p.isOwner = p.role === '管理員';
+  return p;
+}
+
+function requireAdmin_(tk) {
+  var me = me_(tk);
+  if (!me.isAdmin) throw new Error('這個功能只有主管可以使用。');
+  return me;
+}
+
+function requireOwner_(tk) {
+  var me = me_(tk);
+  if (!me.isOwner) throw new Error('帳號管理只有「管理員」可以使用。');
+  return me;
+}
+
+function api_login(account, password) {
+  account = String(account || '').trim().toLowerCase();
+  if (!account || !password) throw new Error('請輸入帳號與密碼');
+  var cache = CacheService.getScriptCache(), key = 'fail_' + account, fails = Number(cache.get(key) || 0);
+  if (fails >= 5) throw new Error('密碼錯誤太多次，請 10 分鐘後再試，或請管理員重設密碼。');
+  var p = people_().filter(function (x) { return x.account === account || x.email === account; })[0];
+  if (!p || !p.hash || hash_(p.salt, password) !== p.hash) {
+    cache.put(key, String(fails + 1), 600);
+    throw new Error('帳號或密碼錯誤');
+  }
+  cache.remove(key);
+  return { token: startSession_(p), mustChange: p.mustChange };
+}
+
+/** 公司 Google 帳號登入（網頁部署為「網域內使用者」時才取得到 Email） */
+function api_googleLogin() {
+  var email = '';
+  try { email = String(Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) { }
+  if (!email) return null;
+  var p = people_().filter(function (x) { return x.email === email; })[0];
+  return p ? { token: startSession_(p), mustChange: false } : null;
+}
+
+function api_logout(tk) {
+  if (tk && /^[0-9a-f]{64}$/.test(String(tk))) PropertiesService.getScriptProperties().deleteProperty('sess_' + tk);
+  return true;
+}
+
+function api_changePassword(tk, oldPw, newPw) {
+  var me = me_(tk);
+  if (me.hash && hash_(me.salt, oldPw) !== me.hash) throw new Error('目前密碼不正確');
+  checkPassword_(newPw);
+  var salt = newSalt_();
+  updateObj_('人員', me._row, { '密碼雜湊': hash_(salt, newPw), '鹽': salt, '需改密碼': '' });
+  return true;
 }
 
 /* ============================== 寄信 ============================== */
@@ -266,21 +390,24 @@ function table_(head, rows) {
     '</table>';
 }
 
-/* ============================== 初始化 ============================== */
+/* ============================== 初始化資料 ============================== */
 
-function api_init() {
-  var me = me_(), s = getSettings_();
+function api_init(tk) {
+  var me = me_(tk), s = getSettings_(), t = today_();
+  var nm = nextMonth_(t.slice(0, 7)), w = windowOf_(nm);
   return {
-    me: { email: me.email, name: me.name, role: me.role, isAdmin: me.isAdmin },
-    people: people_(true).map(function (p) { return { email: p.email, name: p.name, role: p.role, phone: p.phone, active: p.active }; }),
-    settings: s, today: today_(), now: now_(), equip: EQUIP_LIST, sla: SLA, freqs: FREQS
+    me: { email: me.email, account: me.account, name: me.name, role: me.role, isAdmin: me.isAdmin, isOwner: me.isOwner, sched: me.sched, mustChange: me.mustChange },
+    people: people_(true).map(publicPerson_),
+    settings: s, today: t, now: now_(), equip: EQUIP_LIST, sla: SLA, freqs: FREQS, roles: ROLES,
+    defaultMonth: t >= w.start ? nm : t.slice(0, 7),
+    reportUrl: appUrl_() ? appUrl_() + '?p=report' : ''
   };
 }
 
 /* ============================== 首頁 ============================== */
 
-function api_home() {
-  var me = me_(), t = today_(), tm = addDays_(t, 1), month = t.slice(0, 7), s = getSettings_();
+function api_home(tk) {
+  var me = me_(tk), t = today_(), tm = addDays_(t, 1), month = t.slice(0, 7);
   var shifts = readTable_('班表'), months = monthStatusMap_();
   var pub = function (d) { return months[d.slice(0, 7)] === '已發布' || me.isAdmin; };
   var duty = function (d) { var r = shifts.filter(function (x) { return x['日期'] === d; })[0]; return r && pub(d) ? r['姓名'] : ''; };
@@ -290,72 +417,135 @@ function api_home() {
 
   var insp = inspectionStatus_(t);
   var tickets = readTable_('叫修單').filter(function (x) { return x['狀態'] !== '已結案'; }).map(ticketView_);
-  var nm = nextMonth_(month), deadline = Number(s['不可上班日登記截止日']) || 20;
-  var confirmed = readTable_('填寫確認').some(function (x) { return x['月份'] === nm && x['Email'] === me.email; });
   var sops = readTable_('SOP'), reads = readTable_('已讀紀錄').filter(function (x) { return x['Email'] === me.email; });
   var unread = sops.filter(function (x) {
     return x['必讀'] === 'Y' && !reads.some(function (r) { return r['SOPID'] === x['ID'] && r['版本'] === x['版本']; });
   }).map(function (x) { return { id: x['ID'], title: x['標題'] }; });
 
-  return {
-    today: t, todayDuty: duty(t), tomorrowDuty: duty(tm), myShifts: mine,
-    insp: insp, tickets: tickets,
-    leave: { month: nm, deadline: month + '-' + (deadline < 10 ? '0' : '') + deadline, confirmed: confirmed, isStaff: me.role === '駐點' },
-    unread: unread
-  };
+  // 登記提醒：目前開放登記中的月份
+  var confirms = readTable_('填寫確認'), leave = null;
+  [month, nextMonth_(month), nextMonth_(nextMonth_(month))].forEach(function (m) {
+    if (leave) return;
+    var w = windowOf_(m);
+    if (t >= w.start && t <= w.end && months[m] !== '已發布') {
+      leave = { month: m, start: w.start, end: w.end, sched: me.sched,
+        confirmed: confirms.some(function (x) { return x['月份'] === m && x['Email'] === me.email; }) };
+    }
+  });
+
+  // 主管：下個月班表概況
+  var plan = null;
+  if (me.isAdmin) {
+    var nm = nextMonth_(month), w2 = windowOf_(nm), st = staff_();
+    plan = {
+      month: nm, status: months[nm] || '未排班', start: w2.start, end: w2.end,
+      done: st.filter(function (p) { return confirms.some(function (x) { return x['月份'] === nm && x['Email'] === p.email; }); }).map(function (p) { return p.name; }),
+      notYet: st.filter(function (p) { return !confirms.some(function (x) { return x['月份'] === nm && x['Email'] === p.email; }); }).map(function (p) { return p.name; })
+    };
+  }
+
+  return { today: t, todayDuty: duty(t), tomorrowDuty: duty(tm), myShifts: mine, insp: insp, tickets: tickets, leave: leave, plan: plan, unread: unread };
 }
 
 /* ============================== 排班 ============================== */
 
-function monthStatusMap_() {
+function monthRows_() {
   var m = {};
-  readTable_('班表月份').forEach(function (r) { m[r['月份']] = r['狀態']; });
+  readTable_('班表月份').forEach(function (r) { m[r['月份']] = r; });
   return m;
 }
 
-function api_getSchedule(month) {
-  var me = me_(), status = monthStatusMap_()[month] || '未排班';
-  var row = readTable_('班表月份').filter(function (r) { return r['月份'] === month; })[0];
+function monthStatusMap_() {
+  var m = {}, rows = monthRows_();
+  Object.keys(rows).forEach(function (k) { m[k] = rows[k]['狀態'] || '未排班'; });
+  return m;
+}
+
+function windowOf_(month, row) {
+  row = row || monthRows_()[month] || {};
+  var s = getSettings_(), pm = prevMonth_(month);
+  var sd = Number(s['登記開始日']) || 15, ed = Number(s['不可上班日登記截止日']) || 20;
+  return { start: row['登記開始'] || dayOf_(pm, sd), end: row['登記截止'] || dayOf_(pm, Math.max(sd, ed)) };
+}
+
+function setMonthRow_(month, obj) {
+  var r = readTable_('班表月份').filter(function (x) { return x['月份'] === month; })[0];
+  if (r) updateObj_('班表月份', r._row, obj);
+  else { obj['月份'] = month; if (!obj['狀態']) obj['狀態'] = '未排班'; appendObj_('班表月份', obj); }
+}
+
+function touchMonth_(month) { setMonthRow_(month, { '登記異動': fmt_(new Date(), 'yyyy-MM-dd HH:mm:ss') }); }
+
+function api_getSchedule(tk, month) {
+  var me = me_(tk), t = today_(), auto = '';
+  if (me.isAdmin && month >= t.slice(0, 7) && staff_().length) {
+    var row0 = monthRows_()[month] || {}, st0 = row0['狀態'] || '未排班';
+    if (st0 === '未排班') { autoSchedule_(month, true); auto = 'new'; }
+    else if (st0 === '草稿' && row0['登記異動'] && row0['登記異動'] > (row0['預排時間'] || '')) { autoSchedule_(month, true); auto = 'redo'; }
+  }
+  var row = monthRows_()[month] || {}, status = row['狀態'] || '未排班';
   var show = me.isAdmin || status === '已發布';
   var shifts = readTable_('班表').filter(function (x) { return x['日期'].slice(0, 7) === month; });
   var map = {};
   shifts.forEach(function (x) { map[x['日期']] = x; });
-  var days = monthDays_(month).map(function (d) {
-    var r = map[d] || {};
-    return { date: d, wd: weekday_(d), email: show ? (r['Email'] || '') : '', name: show ? (r['姓名'] || '') : '', manual: show && r['手動'] === 'Y', note: show ? (r['備註'] || '') : '' };
-  });
   var unav = readTable_('不可上班').filter(function (x) { return x['日期'].slice(0, 7) === month; })
     .map(function (x) { return { date: x['日期'], email: x['Email'], name: x['姓名'], reason: x['原因'] }; });
+  var days = monthDays_(month).map(function (d) {
+    var r = map[d] || {}, em = show ? (r['Email'] || '') : '';
+    return {
+      date: d, wd: weekday_(d), email: em, name: show ? (r['姓名'] || '') : '', manual: show && r['手動'] === 'Y', note: show ? (r['備註'] || '') : '',
+      conflict: !!em && unav.some(function (u) { return u.date === d && u.email === em; })
+    };
+  });
   var confirms = readTable_('填寫確認').filter(function (x) { return x['月份'] === month; })
-    .map(function (x) { return { email: x['Email'], name: x['姓名'], at: x['確認時間'] }; });
+    .map(function (x) { return { email: x['Email'], name: x['姓名'], at: x['確認時間'], note: x['說明'] }; });
   var stats = {};
   days.forEach(function (d) { if (d.email) stats[d.email] = (stats[d.email] || 0) + 1; });
-  var s = getSettings_(), dl = Number(s['不可上班日登記截止日']) || 20, pm = prevMonth_(month);
+  var w = windowOf_(month, row);
   return {
-    month: month, status: status, publishedAt: row ? row['發布時間'] : '', visible: show,
+    month: month, status: status, publishedAt: row['發布時間'] || '', plannedAt: row['預排時間'] || '', visible: show, auto: auto,
     days: days, unavail: unav, confirms: confirms, stats: stats,
     staff: staff_().map(function (p) { return { email: p.email, name: p.name }; }),
-    deadline: pm + '-' + (dl < 10 ? '0' : '') + dl, today: today_()
+    window: { start: w.start, end: w.end, open: t >= w.start && t <= w.end, custom: !!row['登記開始'] },
+    deadline: w.end, today: t
   };
 }
 
-function api_toggleUnavail(date, reason) {
-  var me = me_();
+function api_setWindow(tk, month, start, end) {
+  var me = requireAdmin_(tk);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) throw new Error('登記期間格式錯誤（開始日要早於截止日）');
+  withLock_(function () { setMonthRow_(month, { '登記開始': start, '登記截止': end, '預排通知': '' }); });
+  var t = today_();
+  if (t >= start && t <= end) {
+    mail_(staff_(), month + ' 開放登記不能上班的日子（' + md_(start) + '～' + md_(end) + '）',
+      '<p>' + esc_(me.name) + ' 開放登記 <b>' + month + '</b> 不能上班的日子，期間 <b>' + start + ' ～ ' + end + '</b>。</p>' +
+      '<p>請到「班表」點選不能上班的日子後按「我登記好了」；都可以的話按「我都可以，聽安排」。完成前系統每天早上會提醒一次。</p>');
+  }
+  return true;
+}
+
+function api_toggleUnavail(tk, date, reason, forEmail) {
+  var me = me_(tk);
+  if (forEmail && forEmail !== me.email && !me.isAdmin) throw new Error('只能登記自己的日子');
+  var who = forEmail ? people_().filter(function (p) { return p.email === forEmail; })[0] : me;
+  if (!who) throw new Error('找不到人員');
   if (date < today_()) throw new Error('不能登記今天以前的日期。');
   return withLock_(function () {
-    var rows = readTable_('不可上班').filter(function (x) { return x['日期'] === date && x['Email'] === me.email; });
+    var month = date.slice(0, 7);
+    var rows = readTable_('不可上班').filter(function (x) { return x['日期'] === date && x['Email'] === who.email; });
     if (rows.length) {
       deleteRows_('不可上班', rows.map(function (r) { return r._row; }));
+      touchMonth_(month);
       return { on: false };
     }
-    appendObj_('不可上班', { '日期': date, 'Email': me.email, '姓名': me.name, '原因': reason || '', '登記時間': now_() });
-    // 已發布且當天是自己值班 → 通知主管調班
-    var month = date.slice(0, 7);
+    appendObj_('不可上班', { '日期': date, 'Email': who.email, '姓名': who.name, '原因': reason || '', '登記時間': now_() });
+    touchMonth_(month);
+    // 已發布且當天是他值班 → 通知主管調班
     if (monthStatusMap_()[month] === '已發布') {
       var sh = readTable_('班表').filter(function (x) { return x['日期'] === date; })[0];
-      if (sh && sh['Email'] === me.email) {
-        mail_(admins_(), '班表衝突：' + me.name + ' ' + md_(date) + ' 無法上班',
-          '<p>' + esc_(me.name) + ' 登記 <b>' + date + '（' + WD[weekday_(date)] + '）</b> 無法上班，但當天已排他值班。</p>' +
+      if (sh && sh['Email'] === who.email) {
+        mail_(admins_(), '班表衝突：' + who.name + ' ' + md_(date) + ' 無法上班',
+          '<p>' + esc_(who.name) + ' 登記 <b>' + date + '（' + WD[weekday_(date)] + '）</b> 無法上班，但當天已排他值班。</p>' +
           '<p>原因：' + esc_(reason || '（未填）') + '</p><p>請到「班表」調整當天值班人員。</p>');
         return { on: true, conflict: true };
       }
@@ -364,28 +554,34 @@ function api_toggleUnavail(date, reason) {
   });
 }
 
-function api_confirmMonth(month) {
-  var me = me_();
+function api_confirmMonth(tk, month) {
+  var me = me_(tk);
   return withLock_(function () {
     var old = readTable_('填寫確認').filter(function (x) { return x['月份'] === month && x['Email'] === me.email; });
     deleteRows_('填寫確認', old.map(function (r) { return r._row; }));
-    appendObj_('填寫確認', { '月份': month, 'Email': me.email, '姓名': me.name, '確認時間': now_() });
     var mine = readTable_('不可上班').filter(function (x) { return x['日期'].slice(0, 7) === month && x['Email'] === me.email; })
       .map(function (x) { return md_(x['日期']) + (x['原因'] ? '（' + x['原因'] + '）' : ''); });
-    mail_(admins_(), me.name + ' 已完成 ' + month + ' 不可上班日登記',
-      '<p>' + esc_(me.name) + ' 已確認 ' + month + ' 的不可上班日：</p><p><b>' + (mine.length ? esc_(mine.join('、')) : '沒有不可上班的日子') + '</b></p>');
+    var note = mine.length ? '不能上班 ' + mine.length + ' 天' : '都可以，聽安排';
+    appendObj_('填寫確認', { '月份': month, 'Email': me.email, '姓名': me.name, '確認時間': now_(), '說明': note });
+    touchMonth_(month);
+    mail_(admins_().filter(function (a) { return a.email !== me.email; }), me.name + ' 已完成 ' + month + ' 登記（' + note + '）',
+      '<p>' + esc_(me.name) + ' 已確認 ' + month + ' 的班：</p><p><b>' + (mine.length ? '不能上班：' + esc_(mine.join('、')) : '都可以，聽安排') + '</b></p>');
     return true;
   });
 }
 
-function api_autoSchedule(month, keepManual) {
-  requireAdmin_();
+function api_autoSchedule(tk, month, keepManual) {
+  requireAdmin_(tk);
+  return autoSchedule_(month, keepManual);
+}
+
+function autoSchedule_(month, keepManual) {
   return withLock_(function () {
     var s = getSettings_();
     var maxC = Math.max(1, Number(s['最多連續上班天數']) || 6);
     var block = Math.max(1, Number(s['偏好連續天數']) || 2);
     var staff = staff_();
-    if (!staff.length) throw new Error('「人員」名單裡沒有角色為「駐點」的人員。');
+    if (!staff.length) throw new Error('沒有可排班的人員，請到「管理 → 帳號」把人員設為「可排班」。');
     var days = monthDays_(month);
     var un = {};
     readTable_('不可上班').forEach(function (x) { un[x['日期'] + '|' + x['Email']] = true; });
@@ -446,20 +642,14 @@ function api_autoSchedule(month, keepManual) {
 
     var others = all.filter(function (x) { return x['日期'].slice(0, 7) !== month; });
     rewrite_('班表', others.concat(result).sort(function (a, b) { return a['日期'] < b['日期'] ? -1 : 1; }));
-    setMonthStatus_(month, monthStatusMap_()[month] === '已發布' ? '已發布' : '草稿', null);
+    var st = monthStatusMap_()[month];
+    setMonthRow_(month, { '狀態': st === '已發布' ? '已發布' : '草稿', '預排時間': fmt_(new Date(), 'yyyy-MM-dd HH:mm:ss') });
     return { gaps: gaps };
   });
 }
 
-function setMonthStatus_(month, status, by) {
-  var r = readTable_('班表月份').filter(function (x) { return x['月份'] === month; })[0];
-  var o = { '月份': month, '狀態': status };
-  if (by) { o['發布時間'] = now_(); o['發布人'] = by; }
-  if (r) updateObj_('班表月份', r._row, o); else appendObj_('班表月份', o);
-}
-
-function api_setShift(date, email, note) {
-  var me = requireAdmin_();
+function api_setShift(tk, date, email, note) {
+  var me = requireAdmin_(tk);
   return withLock_(function () {
     var rows = readTable_('班表'), r = rows.filter(function (x) { return x['日期'] === date; })[0];
     var oldEmail = r ? r['Email'] : '';
@@ -467,7 +657,7 @@ function api_setShift(date, email, note) {
     var o = { '日期': date, 'Email': email || '', '姓名': name, '手動': 'Y', '備註': note || '', '更新時間': now_() };
     if (r) updateObj_('班表', r._row, o); else appendObj_('班表', o);
     var month = date.slice(0, 7), st = monthStatusMap_()[month];
-    if (!st) setMonthStatus_(month, '草稿', null);
+    if (!st || st === '未排班') setMonthRow_(month, { '狀態': '草稿' });
     if (st === '已發布' && oldEmail !== (email || '')) {
       var txt = date + '（' + WD[weekday_(date)] + '）值班：' + (oldEmail ? nameOf_(oldEmail) : '（無）') + ' → ' + (name || '（無）');
       mail_([oldEmail, email].concat(admins_().map(function (a) { return a.email; })), '班表異動 ' + md_(date),
@@ -477,16 +667,18 @@ function api_setShift(date, email, note) {
   });
 }
 
-function api_publish(month) {
-  var me = requireAdmin_();
-  var data = api_getSchedule(month);
-  setMonthStatus_(month, '已發布', me.name);
+function scheduleMailHtml_(data) {
   var s = getSettings_();
   var rows = data.days.map(function (d) { return [md_(d.date), WD[d.wd], d.name || '（缺人）', d.note]; });
   var stat = Object.keys(data.stats).map(function (e) { return [nameOf_(e), data.stats[e] + ' 天']; });
-  mail_(people_(), month + ' 班表已發布' + (data.publishedAt ? '（更新版）' : ''),
-    '<p>' + month + ' 駐點班表已發布，上班時間 ' + esc_(s['上班時間']) + '，每天一人。</p>' +
-    table_(['日期', '星期', '值班', '備註'], rows) + '<p>本月天數統計：</p>' + table_(['人員', '天數'], stat));
+  return '<p>上班時間 ' + esc_(s['上班時間']) + '，每天一人。</p>' + table_(['日期', '星期', '值班', '備註'], rows) + '<p>天數統計：</p>' + table_(['人員', '天數'], stat);
+}
+
+function api_publish(tk, month) {
+  var me = requireAdmin_(tk);
+  var data = api_getSchedule(tk, month);
+  setMonthRow_(month, { '狀態': '已發布', '發布時間': now_(), '發布人': me.name });
+  mail_(people_(), month + ' 班表已發布' + (data.publishedAt ? '（更新版）' : ''), '<p>' + month + ' 駐點班表已發布。</p>' + scheduleMailHtml_(data));
   return true;
 }
 
@@ -505,12 +697,13 @@ function ticketView_(t) {
     replyDue: t['回覆期限'], fixDue: t['排除期限'], replyAt: t['回覆時間'], replyBy: t['回覆人'],
     process: t['處理過程'], fixAt: t['排除時間'], spare: t['備品'], confirmBy: t['機關確認人'], status: t['狀態'],
     photos: photos, eventReport: t['事件報告'], creator: t['建立者'], creatorEmail: t['建立者Email'], updated: t['更新時間'],
+    source: t['來源'] || '系統',
     replyOver: !!replyOver, fixOver: !!fixOver, replyLate: !!replyLate, fixLate: !!fixLate
   };
 }
 
-function api_listTickets(filter) {
-  me_();
+function api_listTickets(tk, filter) {
+  me_(tk);
   filter = filter || {};
   var list = readTable_('叫修單');
   if (filter.month) list = list.filter(function (x) { return x['通報時間'].slice(0, 7) === filter.month; });
@@ -524,7 +717,7 @@ function nextTicketId_(at) {
   return prefix + (n < 10 ? '0' : '') + n;
 }
 
-function createTicket_(me, o) {
+function createTicket_(me, o, source) {
   if (!o.symptom) throw new Error('請填寫故障現象。');
   if (!o.equip) throw new Error('請選擇設備或系統。');
   var lv = SLA[String(o.level)] ? String(o.level) : '2';
@@ -534,22 +727,67 @@ function createTicket_(me, o) {
     '編號': id, '通報時間': at, '通報人': o.reporter || me.name, '通報單位': o.unit || '', '通報電話': o.phone || '',
     '設備系統': o.equip, '位置編號': o.loc || '', '故障現象': o.symptom, '等級': lv,
     '回覆期限': addMin_(at, SLA[lv].reply), '排除期限': addMin_(at, SLA[lv].fix),
-    '狀態': '待回覆', '照片': (o.photos || []).join('\n'), '建立者': me.name, '建立者Email': me.email, '更新時間': now_(), '已提醒': ''
+    '狀態': '待回覆', '照片': (o.photos || []).join('\n'), '建立者': me.name, '建立者Email': me.email || '', '更新時間': now_(), '已提醒': '',
+    '來源': source || '系統'
   };
   appendObj_('叫修單', rec);
   addLog_('叫修', '受理 ' + id + '：' + o.equip + (o.loc ? '／' + o.loc : '') + '－' + o.symptom, '待回覆', me.name, id);
   var lvName = SLA[lv].name;
-  mail_(people_(), '［' + lvName + '］新叫修 ' + id + '：' + o.equip,
+  mail_(people_(), '［' + lvName + '］新叫修 ' + id + '：' + o.equip + (source === '報修頁' ? '（機關報修）' : ''),
     '<p style="font-size:16px"><b style="color:' + (lv === '1' ? '#c62828' : '#0b5cad') + '">' + lvName + '</b>（' + esc_(SLA[lv].desc) + '）</p>' +
-    table_(['欄位', '內容'], [['編號', id], ['通報時間', at], ['通報人', rec['通報人'] + ' ' + rec['通報單位'] + ' ' + rec['通報電話']],
+    table_(['欄位', '內容'], [['編號', id], ['來源', rec['來源']], ['通報時間', at], ['通報人', rec['通報人'] + ' ' + rec['通報單位'] + ' ' + rec['通報電話']],
     ['設備或系統', o.equip], ['位置／編號', o.loc || ''], ['故障現象', o.symptom], ['回覆期限', rec['回覆期限']], ['排除期限', rec['排除期限']]]) +
     (lv === '1' ? '<p style="color:#c62828"><b>第一級：預估超過 10 分鐘無法恢復時，請立即通報現場主管，建議啟動人工應變。</b></p>' : ''));
   return id;
 }
 
-function api_createTicket(o) {
-  var me = me_();
-  return withLock_(function () { return createTicket_(me, o); });
+function api_createTicket(tk, o) {
+  var me = me_(tk);
+  return withLock_(function () { return createTicket_(me, o, '系統'); });
+}
+
+/* ---------- 機關免登入報修頁 ---------- */
+
+function publicLimit_(key, max) {
+  var c = CacheService.getScriptCache(), n = Number(c.get(key) || 0);
+  if (n >= max) throw new Error('目前通報太頻繁，請改用電話或 LINE 通報：' + getSettings_()['保固服務專線']);
+  c.put(key, String(n + 1), 600);
+}
+
+function api_publicInfo() {
+  var s = getSettings_();
+  return { name: s['系統名稱'], hotline: s['保固服務專線'], hours: s['上班時間'], equip: EQUIP_LIST };
+}
+
+function api_publicReport(o) {
+  o = o || {};
+  if (o.website) return 'OK'; // 防機器人欄位
+  publicLimit_('pub_report', 20);
+  var clip = function (v, n) { return String(v || '').trim().slice(0, n); };
+  var data = {
+    reporter: clip(o.reporter, 30), unit: clip(o.unit, 40), phone: clip(o.phone, 30),
+    equip: EQUIP_LIST.indexOf(o.equip) >= 0 ? o.equip : '其他', loc: clip(o.loc, 60), symptom: clip(o.symptom, 1000),
+    level: ({ all: '1', part: '2', later: '3' })[o.impact] || '2',
+    photos: (o.photos || []).filter(function (x) { return /^[\w-]{10,80}$/.test(x); }).slice(0, 5)
+  };
+  if (!data.reporter) throw new Error('請填寫您的姓名');
+  if (!data.symptom) throw new Error('請描述發生什麼問題');
+  return withLock_(function () { return createTicket_({ name: '機關報修', email: '' }, data, '報修頁'); });
+}
+
+function api_publicUpload(name, dataUrl) {
+  publicLimit_('pub_upload', 30);
+  if (String(dataUrl).length > 4000000) throw new Error('照片太大');
+  return savePhoto_(name, dataUrl);
+}
+
+function savePhoto_(name, dataUrl) {
+  var m = String(dataUrl).match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
+  if (!m) throw new Error('照片格式錯誤');
+  var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], String(name || 'photo').slice(0, 60) || ('photo_' + Date.now() + '.jpg'));
+  var file = subFolder_('叫修照片').createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { }
+  return file.getId();
 }
 
 function findTicket_(id) {
@@ -558,8 +796,8 @@ function findTicket_(id) {
   return t;
 }
 
-function api_ticketAction(id, action, data) {
-  var me = me_();
+function api_ticketAction(tk, id, action, data) {
+  var me = me_(tk);
   data = data || {};
   return withLock_(function () {
     var t = findTicket_(id), n = now_(), o = { '更新時間': n };
@@ -623,14 +861,9 @@ function api_ticketAction(id, action, data) {
   });
 }
 
-function api_uploadPhoto(name, dataUrl) {
-  me_();
-  var m = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
-  if (!m) throw new Error('照片格式錯誤');
-  var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], name || ('photo_' + Date.now() + '.jpg'));
-  var file = folder_().createFile(blob);
-  try { file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { }
-  return file.getId();
+function api_uploadPhoto(tk, name, dataUrl) {
+  me_(tk);
+  return savePhoto_(name, dataUrl);
 }
 
 /* ============================== 維護工作紀錄（附表三） ============================== */
@@ -640,15 +873,16 @@ function addLog_(cat, summary, result, by, ref) {
   appendObj_('工作紀錄', { 'ID': uid_('W'), '日期': n.slice(0, 10), '時間': n.slice(11), '類別': cat, '內容摘要': summary, '處理結果': result || '', '處理人': by, '關聯編號': ref || '' });
 }
 
-function api_listWorklog(month) {
-  me_();
+function listWorklog_(month) {
   return readTable_('工作紀錄').filter(function (x) { return x['日期'].slice(0, 7) === month; })
     .map(function (x) { return { id: x['ID'], date: x['日期'], time: x['時間'], cat: x['類別'], summary: x['內容摘要'], result: x['處理結果'], by: x['處理人'], ref: x['關聯編號'] }; })
     .sort(function (a, b) { return (a.date + a.time) < (b.date + b.time) ? 1 : -1; });
 }
 
-function api_addWorklog(o) {
-  var me = me_();
+function api_listWorklog(tk, month) { me_(tk); return listWorklog_(month); }
+
+function api_addWorklog(tk, o) {
+  var me = me_(tk);
   if (!o || !o.summary) throw new Error('請填寫內容摘要。');
   withLock_(function () {
     var n = now_();
@@ -660,8 +894,8 @@ function api_addWorklog(o) {
   return true;
 }
 
-function api_deleteWorklog(id) {
-  var me = me_();
+function api_deleteWorklog(tk, id) {
+  var me = me_(tk);
   return withLock_(function () {
     var r = readTable_('工作紀錄').filter(function (x) { return x['ID'] === id; })[0];
     if (!r) return true;
@@ -709,8 +943,8 @@ function inspItems_(activeOnly) {
     .sort(function (a, b) { return FREQS.indexOf(a.freq) - FREQS.indexOf(b.freq) || a.order - b.order; });
 }
 
-function api_getInspections(dateStr) {
-  var me = me_();
+function api_getInspections(tk, dateStr) {
+  var me = me_(tk);
   dateStr = dateStr || today_();
   if (dateStr > today_()) throw new Error('不能填未來日期的巡檢。');
   var s = getSettings_(), status = inspectionStatus_(dateStr), recs = readTable_('巡檢紀錄');
@@ -722,8 +956,8 @@ function api_getInspections(dateStr) {
   return { date: dateStr, items: inspItems_(true), status: status, last: last, warrantyEnd: s['保固期滿日'], me: me.name };
 }
 
-function api_submitInspection(freq, dateStr, results, confirmBy) {
-  var me = me_();
+function api_submitInspection(tk, freq, dateStr, results, confirmBy) {
+  var me = me_(tk);
   if (FREQS.indexOf(freq) < 0) throw new Error('頻率錯誤');
   dateStr = dateStr || today_();
   if (dateStr > today_()) throw new Error('不能填未來日期的巡檢。');
@@ -743,7 +977,7 @@ function api_submitInspection(freq, dateStr, results, confirmBy) {
     results.forEach(function (r) {
       if (r.result === '異常' && r.ticket) {
         var it = items.filter(function (x) { return x.id === r.id; })[0] || { area: '其他', item: '' };
-        tickets.push(createTicket_(me, { equip: guessEquip_(it.area), loc: it.area, symptom: '［' + freq + '巡檢異常］' + (r.note || it.item), level: r.level || '2' }));
+        tickets.push(createTicket_(me, { equip: guessEquip_(it.area), loc: it.area, symptom: '［' + freq + '巡檢異常］' + (r.note || it.item), level: r.level || '2' }, '巡檢'));
       }
     });
     addLog_('巡檢', freq + '巡檢（' + periodLabel_(freq, period) + '）' + rows.length + ' 項', abn.length ? '異常 ' + abn.length + ' 項' : '全部正常', me.name, tickets.join(','));
@@ -762,8 +996,7 @@ function guessEquip_(area) {
   return '其他';
 }
 
-function api_inspectionHistory(month) {
-  me_();
+function inspectionHistory_(month) {
   var recs = readTable_('巡檢紀錄').filter(function (r) {
     var p = r['期別'];
     return r['巡檢時間'].slice(0, 7) === month || p.slice(0, 7) === month || (p.charAt(0) === 'W' && p.slice(1, 8) === month);
@@ -779,8 +1012,10 @@ function api_inspectionHistory(month) {
   return { month: month, list: list, doneDays: doneDays, days: monthDays_(month), today: today_() };
 }
 
-function api_saveInspItem(o) {
-  requireAdmin_();
+function api_inspectionHistory(tk, month) { me_(tk); return inspectionHistory_(month); }
+
+function api_saveInspItem(tk, o) {
+  requireAdmin_(tk);
   return withLock_(function () {
     if (!o.area || !o.item || FREQS.indexOf(o.freq) < 0) throw new Error('請填寫頻率、區域與檢查項目。');
     var rec = { '頻率': o.freq, '區域': o.area, '檢查項目': o.item, '排序': o.order || 99, '啟用': o.active === false ? 'N' : 'Y' };
@@ -793,12 +1028,12 @@ function api_saveInspItem(o) {
   });
 }
 
-function api_listInspItems() { requireAdmin_(); return inspItems_(false); }
+function api_listInspItems(tk) { requireAdmin_(tk); return inspItems_(false); }
 
 /* ============================== SOP／教育訓練 ============================== */
 
-function api_listSOP() {
-  var me = me_();
+function api_listSOP(tk) {
+  var me = me_(tk);
   var sops = readTable_('SOP'), reads = readTable_('已讀紀錄'), ppl = people_();
   return {
     list: sops.map(function (x) {
@@ -816,8 +1051,8 @@ function api_listSOP() {
   };
 }
 
-function api_saveSOP(o) {
-  var me = requireAdmin_();
+function api_saveSOP(tk, o) {
+  var me = requireAdmin_(tk);
   if (!o.title || !o.cat) throw new Error('請填寫分類與標題。');
   return withLock_(function () {
     var rec = { '分類': o.cat, '標題': o.title, '內容': o.content || '', '文件連結': o.link || '', '版本': o.ver || '1', '必讀': o.must ? 'Y' : 'N', '更新日': today_(), '更新人': me.name };
@@ -832,8 +1067,19 @@ function api_saveSOP(o) {
   });
 }
 
-function api_deleteSOP(id) {
-  requireAdmin_();
+/** SOP 附件上傳（Word／PDF／圖片／影片），存到資料夾「SOP文件」，回傳連結 */
+function api_uploadFile(tk, name, dataUrl) {
+  requireAdmin_(tk);
+  var m = String(dataUrl).match(/^data:([^;]*);base64,(.+)$/);
+  if (!m) throw new Error('檔案格式錯誤');
+  var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), m[1] || 'application/octet-stream', String(name || 'file').slice(0, 120));
+  var file = subFolder_('SOP文件').createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { }
+  return file.getUrl();
+}
+
+function api_deleteSOP(tk, id) {
+  requireAdmin_(tk);
   return withLock_(function () {
     var r = readTable_('SOP').filter(function (x) { return x['ID'] === id; })[0];
     if (r) deleteRows_('SOP', [r._row]);
@@ -841,8 +1087,8 @@ function api_deleteSOP(id) {
   });
 }
 
-function api_markRead(id) {
-  var me = me_();
+function api_markRead(tk, id) {
+  var me = me_(tk);
   return withLock_(function () {
     var s = readTable_('SOP').filter(function (x) { return x['ID'] === id; })[0];
     if (!s) throw new Error('找不到文件');
@@ -852,28 +1098,70 @@ function api_markRead(id) {
   });
 }
 
-/* ============================== 主管管理 ============================== */
+/* ============================== 帳號管理（管理員） ============================== */
 
-function api_savePerson(o) {
-  requireAdmin_();
+function api_listPeople(tk) { requireAdmin_(tk); return people_(true).map(publicPerson_); }
+
+function api_savePerson(tk, o) {
+  var me = requireOwner_(tk);
   var email = String(o.email || '').trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw new Error('Email 格式錯誤');
+  var account = String(o.account || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Email 格式錯誤（系統通知會寄到這個信箱）');
+  if (!/^[a-z0-9._-]{3,30}$/.test(account)) throw new Error('帳號只能用英文小寫、數字、. _ -，3～30 個字');
   if (!o.name) throw new Error('請填寫姓名');
+  if (ROLES.indexOf(o.role) < 0) throw new Error('角色錯誤');
   return withLock_(function () {
-    var r = people_(true).filter(function (p) { return p.email === email; })[0];
-    var rec = { 'Email': email, '姓名': o.name, '角色': o.role === '主管' ? '主管' : '駐點', '電話': o.phone || '', '啟用': o.active === false ? 'N' : 'Y' };
-    if (r) updateObj_('人員', r._row, rec); else appendObj_('人員', rec);
-    return api_init().people;
+    var all = people_(true);
+    var r = all.filter(function (p) { return p.email === (o.origEmail || email); })[0];
+    if (!o.origEmail && r) throw new Error('這個 Email 已經有帳號了');
+    if (all.some(function (p) { return p.account === account && p !== r; })) throw new Error('帳號「' + account + '」已被使用');
+    if (all.some(function (p) { return p.email === email && p !== r; })) throw new Error('Email 已被其他帳號使用');
+    var active = o.active !== false;
+    if (r && r.role === '管理員' && (o.role !== '管理員' || !active) &&
+      all.filter(function (p) { return p.role === '管理員' && p.active; }).length <= 1) throw new Error('至少要保留一位啟用中的管理員');
+    var rec = { 'Email': email, '帳號': account, '姓名': o.name, '角色': o.role, '電話': o.phone || '', '啟用': active ? 'Y' : 'N', '排班': o.sched ? 'Y' : 'N' };
+    if (o.password) {
+      checkPassword_(o.password);
+      rec['鹽'] = newSalt_(); rec['密碼雜湊'] = hash_(rec['鹽'], o.password); rec['需改密碼'] = 'Y';
+    } else if (!r) throw new Error('新帳號請設定初始密碼');
+    if (r) {
+      updateObj_('人員', r._row, rec);
+      if (r.email !== email) migrateEmail_(r.email, email);
+    } else { rec['建立時間'] = now_(); appendObj_('人員', rec); }
+    if (o.password && o.sendMail) {
+      mail_(email, '您的系統帳號' + (r ? '密碼已重設' : '已建立'),
+        '<p>' + esc_(o.name) + ' 您好：' + esc_(me.name) + (r ? ' 已重設您的密碼。' : ' 已為您建立帳號。') + '</p>' +
+        table_(['項目', '內容'], [['帳號', account], ['密碼', o.password], ['角色', o.role]]) + '<p>第一次登入後系統會要求您改密碼。</p>');
+    }
+    return people_(true).map(publicPerson_);
   });
 }
 
-function api_saveSettings(map) {
-  requireAdmin_();
+function migrateEmail_(oldE, newE) { // Email 變更時，同步更新其他表的 Email 欄
+  [['班表', 'Email'], ['不可上班', 'Email'], ['填寫確認', 'Email'], ['已讀紀錄', 'Email'], ['巡檢紀錄', '巡檢人Email'], ['叫修單', '建立者Email']].forEach(function (x) {
+    readTable_(x[0]).forEach(function (r) { if (r[x[1]] === oldE) { var o = {}; o[x[1]] = newE; updateObj_(x[0], r._row, o); } });
+  });
+}
+
+function api_deletePerson(tk, email) {
+  var me = requireOwner_(tk);
+  if (email === me.email) throw new Error('不能刪除自己的帳號');
   return withLock_(function () {
-    Object.keys(map).forEach(function (k) { if (k !== '檔案資料夾ID') setSetting_(k, map[k]); });
+    var r = people_(true).filter(function (p) { return p.email === email; })[0];
+    if (r) deleteRows_('人員', [r._row]);
+    return people_(true).map(publicPerson_);
+  });
+}
+
+function api_saveSettings(tk, map) {
+  requireAdmin_(tk);
+  return withLock_(function () {
+    Object.keys(map).forEach(function (k) { setSetting_(k, map[k]); });
     return getSettings_();
   });
 }
+
+/* ============================== 月維護報告 ============================== */
 
 function monthReport_(month) {
   var tickets = readTable_('叫修單').filter(function (x) { return x['通報時間'].slice(0, 7) === month; }).map(ticketView_);
@@ -887,20 +1175,20 @@ function monthReport_(month) {
       fixed: ts.filter(function (t) { return t.fixAt; }).length
     };
   });
-  var hist = api_inspectionHistory(month);
+  var hist = inspectionHistory_(month);
   var days = hist.days.filter(function (d) { return d <= today_(); });
   var dailyDone = days.filter(function (d) { return hist.doneDays[d]; }).length;
   var abn = [];
   hist.list.forEach(function (g) { g.rows.forEach(function (r) { if (r.result === '異常') abn.push([g.label, g.freq, r.area, r.note || r.item]); }); });
-  var logs = api_listWorklog(month).reverse();
+  var logs = listWorklog_(month).reverse();
   var open = readTable_('叫修單').filter(function (x) { return x['狀態'] !== '已結案'; }).map(ticketView_);
   var freqDone = {};
   ['每週', '每月', '每季'].forEach(function (f) { freqDone[f] = hist.list.filter(function (g) { return g.freq === f; }).map(function (g) { return g.label + '（' + g.by + '）'; }); });
   return { month: month, tickets: tickets, byLv: byLv, dailyDone: dailyDone, dailyTotal: days.length, abn: abn, logs: logs, open: open, freqDone: freqDone };
 }
 
-function api_monthReport(month, makeDoc) {
-  var me = requireAdmin_(), r = monthReport_(month);
+function api_monthReport(tk, month, makeDoc) {
+  var me = requireAdmin_(tk), r = monthReport_(month);
   if (!makeDoc) return r;
   var s = getSettings_();
   var doc = DocumentApp.create(month + ' 月維護報告');
@@ -928,7 +1216,7 @@ function api_monthReport(month, makeDoc) {
   else b.appendParagraph('無');
   doc.saveAndClose();
   var file = DriveApp.getFileById(doc.getId());
-  try { file.moveTo(folder_()); } catch (e) { }
+  try { file.moveTo(subFolder_('月維護報告')); } catch (e) { }
   r.docUrl = doc.getUrl();
   return r;
 }
@@ -966,7 +1254,7 @@ function cronSla() {
   });
 }
 
-/** 每小時：依時段寄班表、巡檢提醒（同一天同一時段只寄一次） */
+/** 每小時：依時段寄登記、預排、巡檢、值班提醒（同一天同一時段只做一次） */
 function hourlyJob() {
   var d = new Date(), hour = Number(fmt_(d, 'H')), t = today_(), s = getSettings_();
   var props = PropertiesService.getScriptProperties(), key = 'job_' + t + '_' + hour;
@@ -979,33 +1267,47 @@ function hourlyJob() {
   var adminsE = admins_().map(function (a) { return a.email; });
 
   if (hour === 9) {
-    var day = Number(t.slice(8, 10)), dl = Number(s['不可上班日登記截止日']) || 20, nm = nextMonth_(t.slice(0, 7));
-    if (day >= dl - 5 && day <= dl) {
-      var done = readTable_('填寫確認').filter(function (x) { return x['月份'] === nm; }).map(function (x) { return x['Email']; });
-      staff_().filter(function (p) { return done.indexOf(p.email) < 0; }).forEach(function (p) {
-        mail_(p.email, '請登記 ' + nm + ' 不能上班的日子（' + md_(t.slice(0, 8) + (dl < 10 ? '0' : '') + dl) + ' 截止）',
-          '<p>' + esc_(p.name) + ' 您好：</p><p>請在 <b>' + dl + ' 號</b>前到「班表」切換到 ' + nm + '，點選您不能上班的日子，完成後按「我登記好了」。沒有不能上班的日子也請按一下。</p>');
-      });
-    }
-    if (day === dl + 1) {
-      var cf = readTable_('填寫確認').filter(function (x) { return x['月份'] === nm; }).map(function (x) { return x['姓名']; });
-      var notYet = staff_().filter(function (p) { return cf.indexOf(p.name) < 0; }).map(function (p) { return p.name; });
-      mail_(adminsE, nm + ' 不可上班日登記已截止，可以排班',
-        '<p>已登記：' + esc_(cf.join('、') || '無') + '</p><p>未登記：' + esc_(notYet.join('、') || '無') + '</p><p>請到「班表」切換到 ' + nm + '，按「自動排班」後確認並「發布」。</p>');
-    }
-    var st = inspectionStatus_(t), wd = weekday_(t), duty = dutyOf(t), to = [duty ? duty['Email'] : ''].concat(adminsE);
-    if (wd === 5 && !st['每週'].done) mail_(to, '本週「每週巡檢」尚未完成', '<p>' + st['每週'].label + '的每週巡檢（錯誤日誌、資料庫空間、介接結果、人工應變船班表）還沒填，請在本週內完成。</p>');
-    if (day === 25 && !st['每月'].done) mail_(to, '本月「每月巡檢」尚未完成', '<p>' + st['每月'].label + '的每月巡檢（系統更新、帳號清查、清潔耗材、月報）還沒填，請在月底前完成。</p>');
-    if ([3, 6, 9, 12].indexOf(Number(t.slice(5, 7))) >= 0 && day === 20 && !st['每季'].done) mail_(to, '本季「每季巡檢」尚未完成', '<p>' + st['每季'].label + '的每季巡檢（備份還原測試、UPS 與機房環境、SSL 憑證與網域）還沒填，請在季底前完成。</p>');
-    if (s['保固期滿日'] && !st['保固期滿前'].done && day === 1) {
-      var left = Math.round((parseDate_(s['保固期滿日']) - parseDate_(t)) / 86400000);
-      if (left >= 0 && left <= 90) mail_(adminsE, '保固期滿前檢查提醒（剩 ' + left + ' 天）', '<p>保固期滿日 ' + s['保固期滿日'] + '，行李過磅設備須再經經濟部標準檢驗局檢定合格並附證書 3 份，檢定前要先通知機關。</p>');
+    var day = Number(t.slice(8, 10)), m0 = t.slice(0, 7), rows = monthRows_();
+    [m0, nextMonth_(m0), nextMonth_(nextMonth_(m0))].forEach(function (m) {
+      var row = rows[m] || {}, st = row['狀態'] || '未排班', w = windowOf_(m, row);
+      if (st === '已發布') return;
+      var done = readTable_('填寫確認').filter(function (x) { return x['月份'] === m; }).map(function (x) { return x['Email']; });
+      // 登記期間內：每天提醒還沒登記的人，直到他按「我登記好了／我都可以」
+      if (t >= w.start && t <= w.end) {
+        var left = Math.round((parseDate_(w.end) - parseDate_(t)) / 86400000);
+        staff_().filter(function (p) { return done.indexOf(p.email) < 0; }).forEach(function (p) {
+          mail_(p.email, '請登記 ' + m + ' 不能上班的日子（' + md_(w.end) + ' 截止' + (left === 0 ? '，今天最後一天' : '，剩 ' + left + ' 天') + '）',
+            '<p>' + esc_(p.name) + ' 您好：</p><p>' + m + ' 的班表登記期間是 <b>' + w.start + ' ～ ' + w.end + '</b>。</p>' +
+            '<p>請到「班表」點選您不能上班的日子後按「我登記好了」；都可以的話按「我都可以，聽安排」。完成前每天早上都會收到這封提醒。</p>');
+        });
+      }
+      // 登記截止後：系統自動預排並通知主管（只做一次）
+      if (t > w.end && !row['預排通知'] && staff_().length) {
+        var redo = st === '未排班' || (row['登記異動'] && row['登記異動'] > (row['預排時間'] || ''));
+        if (redo) autoSchedule_(m, true);
+        setMonthRow_(m, { '預排通知': now_() });
+        var data = scheduleData_(m);
+        var notYet = staff_().filter(function (p) { return done.indexOf(p.email) < 0; }).map(function (p) { return p.name; });
+        mail_(adminsE, m + ' 班表已由系統預排，請確認後發布',
+          '<p>' + m + ' 登記已於 ' + w.end + ' 截止，系統已依大家登記的不能上班日預排好班表。</p>' +
+          (notYet.length ? '<p style="color:#b06000">未登記（視為都可以）：' + esc_(notYet.join('、')) + '</p>' : '') +
+          (data.gaps.length ? '<p style="color:#c62828">缺人：' + esc_(data.gaps.map(md_).join('、')) + '</p>' : '') +
+          scheduleMailHtml_(data) + '<p>請到「班表」確認、手動調整後按「發布」。</p>');
+      }
+    });
+    var st2 = inspectionStatus_(t), wd = weekday_(t), duty = dutyOf(t), to = [duty ? duty['Email'] : ''].concat(adminsE);
+    if (wd === 5 && !st2['每週'].done) mail_(to, '本週「每週巡檢」尚未完成', '<p>' + st2['每週'].label + '的每週巡檢（錯誤日誌、資料庫空間、介接結果、人工應變船班表）還沒填，請在本週內完成。</p>');
+    if (day === 25 && !st2['每月'].done) mail_(to, '本月「每月巡檢」尚未完成', '<p>' + st2['每月'].label + '的每月巡檢（系統更新、帳號清查、清潔耗材、月報）還沒填，請在月底前完成。</p>');
+    if ([3, 6, 9, 12].indexOf(Number(t.slice(5, 7))) >= 0 && day === 20 && !st2['每季'].done) mail_(to, '本季「每季巡檢」尚未完成', '<p>' + st2['每季'].label + '的每季巡檢（備份還原測試、UPS 與機房環境、SSL 憑證與網域）還沒填，請在季底前完成。</p>');
+    if (s['保固期滿日'] && !st2['保固期滿前'].done && day === 1) {
+      var left2 = Math.round((parseDate_(s['保固期滿日']) - parseDate_(t)) / 86400000);
+      if (left2 >= 0 && left2 <= 90) mail_(adminsE, '保固期滿前檢查提醒（剩 ' + left2 + ' 天）', '<p>保固期滿日 ' + s['保固期滿日'] + '，行李過磅設備須再經經濟部標準檢驗局檢定合格並附證書 3 份，檢定前要先通知機關。</p>');
     }
   }
 
   if (hour === (Number(s['巡檢逾期提醒時間']) || 11)) {
-    var st2 = inspectionStatus_(t), duty2 = dutyOf(t);
-    if (!st2['每日'].done) {
+    var st3 = inspectionStatus_(t), duty2 = dutyOf(t);
+    if (!st3['每日'].done) {
       mail_([duty2 ? duty2['Email'] : ''].concat(adminsE), '今日巡檢尚未完成（' + md_(t) + '）',
         '<p>' + (duty2 ? esc_(duty2['姓名']) + ' 今天值班，' : '') + '今天的每日巡檢（附表二）還沒填，請盡快完成。</p>');
     }
@@ -1022,15 +1324,30 @@ function hourlyJob() {
   }
 }
 
-function cleanupProps_(props, t) {
-  var all = props.getProperties();
-  Object.keys(all).forEach(function (k) { if (k.indexOf('job_') === 0 && k.slice(4, 14) < addDays_(t, -3)) props.deleteProperty(k); });
+function scheduleData_(month) { // 排程用（不需登入）的班表資料
+  var shifts = readTable_('班表').filter(function (x) { return x['日期'].slice(0, 7) === month; }), map = {}, stats = {};
+  shifts.forEach(function (x) { map[x['日期']] = x; });
+  var days = monthDays_(month).map(function (d) {
+    var r = map[d] || {};
+    if (r['Email']) stats[r['Email']] = (stats[r['Email']] || 0) + 1;
+    return { date: d, wd: weekday_(d), email: r['Email'] || '', name: r['姓名'] || '', note: r['備註'] || '' };
+  });
+  return { days: days, stats: stats, gaps: days.filter(function (d) { return !d.email; }).map(function (d) { return d.date; }) };
 }
 
-/* ============================== 初始化 setup ============================== */
+function cleanupProps_(props, t) {
+  var all = props.getProperties(), now = Date.now();
+  Object.keys(all).forEach(function (k) {
+    if (k.indexOf('job_') === 0 && k.slice(4, 14) < addDays_(t, -3)) props.deleteProperty(k);
+    if (k.indexOf('sess_') === 0) { try { if (JSON.parse(all[k]).x < now) props.deleteProperty(k); } catch (e) { props.deleteProperty(k); } }
+  });
+}
+
+/* ============================== 初始化／升級 setup ============================== */
 
 function setup() {
   var ss = ss_();
+  HEAD_ = {};
   Object.keys(SHEETS).forEach(function (name) {
     var s = ss.getSheetByName(name);
     if (!s) s = ss.insertSheet(name);
@@ -1038,24 +1355,47 @@ function setup() {
     if (s.getLastRow() === 0) {
       s.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold').setBackground('#e8f0fe');
       s.setFrozenRows(1);
-    } else {
-      var cur = s.getRange(1, 1, 1, Math.max(s.getLastColumn(), h.length)).getValues()[0].map(String);
-      h.forEach(function (k, i) { if (cur[i] !== k && cur.indexOf(k) < 0) s.getRange(1, i + 1).setValue(k).setFontWeight('bold').setBackground('#e8f0fe'); });
+    } else { // 升級：缺少的欄位加在最後面，不動既有欄位
+      var lc = s.getLastColumn(), cur = lc ? s.getRange(1, 1, 1, lc).getValues()[0].map(String) : [];
+      while (cur.length && !cur[cur.length - 1]) cur.pop();
+      var missing = h.filter(function (k) { return cur.indexOf(k) < 0; });
+      if (missing.length) s.getRange(1, cur.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold').setBackground('#e8f0fe');
     }
-    s.getRange(1, 1, s.getMaxRows(), h.length).setNumberFormat('@');
+    s.getRange(1, 1, s.getMaxRows(), s.getLastColumn()).setNumberFormat('@');
   });
+  HEAD_ = {};
   ['工作表1', 'Sheet1'].forEach(function (n) { var s = ss.getSheetByName(n); if (s && ss.getSheets().length > 1 && s.getLastRow() === 0) ss.deleteSheet(s); });
 
-  if (!readTable_('設定').length) appendObjs_('設定', DEFAULT_SETTINGS.map(function (r) { return { '項目': r[0], '值': r[1], '說明': r[2] }; }));
+  // 設定：補上新項目
+  var have = readTable_('設定').map(function (r) { return r['項目']; });
+  appendObjs_('設定', DEFAULT_SETTINGS.filter(function (r) { return have.indexOf(r[0]) < 0; }).map(function (r) { return { '項目': r[0], '值': r[1], '說明': r[2] }; }));
+
+  // 人員：第一次建立管理員；舊資料補帳號與臨時密碼
+  var notes = [];
   if (!readTable_('人員').length) {
     var owner = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
-    if (owner) appendObj_('人員', { 'Email': owner, '姓名': '主管', '角色': '主管', '電話': '', '啟用': 'Y' });
+    appendObj_('人員', { 'Email': owner || 'admin@example.com', '帳號': 'admin', '姓名': '管理員', '角色': '管理員', '啟用': 'Y', '排班': 'Y', '建立時間': now_() });
   }
+  people_(true).forEach(function (p) {
+    var o = {};
+    if (!p.account) o['帳號'] = p.email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') || ('user' + p._row);
+    if (!p.hash) {
+      var pw = tempPassword_(), salt = newSalt_();
+      o['鹽'] = salt; o['密碼雜湊'] = hash_(salt, pw); o['需改密碼'] = 'Y';
+      notes.push((o['帳號'] || p.account) + ' ／ ' + pw + '（' + p.name + '）');
+    }
+    if (Object.keys(o).length) updateObj_('人員', p._row, o);
+  });
+
   if (!readTable_('巡檢項目').length) seedInspection_();
   if (!readTable_('SOP').length) seedSOP_();
-  folder_();
+  try { subFolder_('叫修照片'); subFolder_('SOP文件'); subFolder_('月維護報告'); } catch (e) { console.error('建立資料夾失敗：' + e); }
   installTriggers();
-  try { SpreadsheetApp.getUi().alert('初始化完成！\n\n下一步：\n1. 到「人員」工作表加入駐點人員 Email、姓名、角色（駐點／主管）\n2. 到 Apps Script 按「部署 → 新增部署作業 → 網頁應用程式」'); } catch (e) { }
+  var msg = '初始化完成！\n\n' + (notes.length ? '以下帳號的臨時密碼（第一次登入後要改密碼，請抄下來）：\n' + notes.join('\n') + '\n\n' : '') +
+    '下一步：部署 → 新增部署作業 → 網頁應用程式，用 admin 帳號登入後到「管理 → 帳號」新增駐點人員。';
+  console.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { }
+  return msg;
 }
 
 function seedInspection_() {
@@ -1085,7 +1425,7 @@ function seedInspection_() {
 }
 
 function seedSOP_() {
-  var d = today_();
+  var d = today_(), hotline = getSettings_()['保固服務專線'];
   var S = [
     ['駐點工作', '駐點每日工作流程', 'Y', [
       '# 時間與地點',
@@ -1096,7 +1436,7 @@ function seedSOP_() {
       '# 到班後',
       '1. 打開本系統「巡檢」頁，完成每日巡檢（售票櫃台、自助機台、閘門、手持設備、行李托運、資訊看板、機房）',
       '2. 有異常 → 勾「異常」並寫說明，可直接勾「開叫修單」',
-      '3. 看「叫修回報」有沒有未結案的單要接手',
+      '3. 看「叫修回報」有沒有未結案的單要接手（包含機關從報修頁送來的單）',
       '',
       '# 主要任務',
       '- 本案軟硬體系統維護、故障排除',
@@ -1117,8 +1457,9 @@ function seedSOP_() {
     ['故障處理', '故障通報與處理程序（叫修）', 'Y', [
       '# 通報管道',
       '- 駐點時段：機關人員直接找駐點工程師（現場或電話）',
-      '- 非駐點時段：撥打保固服務專線，並以通訊軟體或電子郵件留下文字紀錄',
-      '- 不論哪種管道，都要在本系統「叫修回報」開單（電話通報就由我們補登）',
+      '- 非駐點時段：' + hotline,
+      '- 機關人員也可以用「報修網址」直接填報修單（不用登入，可附照片）',
+      '- 電話、LINE 通報的，由駐點人員在本系統「叫修回報」補開單',
       '',
       '# 處理流程',
       '1. 受理登錄：記錄通報時間、通報人、設備或功能、現象。「收到通知時間」就是期限起算點',
@@ -1291,16 +1632,13 @@ function seedSOP_() {
       '12. 人工應變程式'
     ]],
     ['操作手冊', 'POS 人工售票操作手冊（整合版 V2）', 'N', [
-      '請主管把 Word／PDF 上傳到雲端硬碟後，把連結貼到「文件連結」。',
-      '原始檔：專案資料夾 B3.執行 Execution\\1.會議紀錄\\20261007和12結案驗收會議\\操作手冊文件補件\\操作手冊V2\\POS人工售票'
+      '附件在雲端硬碟資料夾「SOP文件」。主管可在編輯畫面按「上傳附件」更新版本。'
     ]],
     ['操作手冊', '票務後台操作手冊（整合版 V2）', 'N', [
-      '請主管把 Word／PDF 上傳到雲端硬碟後，把連結貼到「文件連結」。',
-      '原始檔：操作手冊V2\\票務後台'
+      '附件在雲端硬碟資料夾「SOP文件」。主管可在編輯畫面按「上傳附件」更新版本。'
     ]],
     ['操作手冊', '管理後台操作手冊（整合版 V2）', 'N', [
-      '請主管把 Word／PDF 上傳到雲端硬碟後，把連結貼到「文件連結」。',
-      '原始檔：操作手冊V2\\管理後台'
+      '附件在雲端硬碟資料夾「SOP文件」。主管可在編輯畫面按「上傳附件」更新版本。'
     ]]
   ];
   appendObjs_('SOP', S.map(function (x, i) {
