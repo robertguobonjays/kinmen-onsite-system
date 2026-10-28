@@ -226,6 +226,7 @@ function uploadFiles(input) {
 function photoHtml(ids) {
   if (!ids || !ids.length) return '';
   return '<div class="photos">' + ids.map(function (id) {
+    if (/^https:\/\//.test(id)) return '<a href="' + esc(id) + '" target="_blank"><img src="' + esc(id) + '" alt="照片"></a>';
     return '<a href="https://drive.google.com/file/d/' + esc(id) + '/view" target="_blank"><img src="https://drive.google.com/thumbnail?id=' + esc(id) + '&sz=w300" alt="照片"></a>';
   }).join('') + '</div>';
 }
@@ -856,7 +857,8 @@ function sopSave(id) {
 function sopUpload() {
   var f = $('sFile').files[0];
   if (!f) return toast('請先選擇檔案', true);
-  if (f.size > 25 * 1024 * 1024) return toast('檔案超過 25MB，請直接放到雲端硬碟後貼連結', true);
+  var maxMb = window.__VERCEL__ ? 3 : 25;
+  if (f.size > maxMb * 1024 * 1024) return toast('檔案超過 ' + maxMb + 'MB，請直接放到雲端硬碟資料夾後貼連結', true);
   $('sUp').disabled = true;
   var fr = new FileReader();
   fr.onload = function () {
@@ -975,7 +977,7 @@ function drawReport(r) {
     '<h3 style="font-size:15px">四、待辦事項（未結案叫修）</h3>' + (r.open.length ? r.open.map(function (t) { return '<div>' + lvTag(t.level) + ' ' + esc(t.id) + ' ' + esc(t.equip) + '－' + esc(t.symptom) + ' ' + stTag(t.status) + '</div>'; }).join('') : '<p class="muted">無</p>') +
     '</div>';
 }
-function makeDoc(m) { api('api_monthReport', m, true).then(function (r) { toast('已產生月報文件'); drawReport(r); }); }
+function makeDoc(m) { api('api_monthReport', m, true).then(function (r) { toast(r.queued ? '月報產生中，約 1 分鐘後會寄到你的信箱' : '已產生月報文件'); drawReport(r); }); }
 
 boot();
 </script>

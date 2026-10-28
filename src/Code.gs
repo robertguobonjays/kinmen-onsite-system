@@ -22,7 +22,9 @@ var SHEETS = {
   '巡檢項目': ['ID', '頻率', '區域', '檢查項目', '排序', '啟用'],
   '巡檢紀錄': ['紀錄ID', '頻率', '期別', '巡檢時間', '巡檢人Email', '巡檢人', '項目ID', '區域', '檢查項目', '結果', '說明', '機關確認人'],
   'SOP': ['ID', '分類', '標題', '內容', '文件連結', '版本', '必讀', '更新日', '更新人'],
-  '已讀紀錄': ['SOPID', '版本', 'Email', '姓名', '時間']
+  '已讀紀錄': ['SOPID', '版本', 'Email', '姓名', '時間'],
+  '寄信佇列': ['ID', '建立時間', '收件者', '主旨', '內容', '狀態', '寄出時間', '錯誤'],
+  '工作佇列': ['ID', '建立時間', '類型', '參數', '申請人Email', '狀態', '完成時間', '結果']
 };
 
 var DEFAULT_SETTINGS = [
@@ -36,7 +38,7 @@ var DEFAULT_SETTINGS = [
   ['明日值班提醒時間', '17', '幾點寄信提醒明天值班的人'],
   ['保固期滿日', '', 'yyyy-MM-dd，用來提醒「保固期滿前」檢查項目（可空白）'],
   ['保固服務專線', '02-7733-5686，或直接 LINE／群組通報', '非駐點時段的叫修管道，會顯示在報修頁與信件'],
-  ['系統網址', '', '部署後的網頁網址（/exec 結尾），信件裡的連結會用這個（空白則自動抓）'],
+  ['系統網址', '', '系統網頁網址（Vercel 網址），信件裡的連結會用這個（空白則自動抓）'],
   ['檔案資料夾ID', '1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1', '照片、月報、SOP 附件存放的雲端硬碟資料夾'],
   ['登入有效天數', '14', '登入後幾天內不用重新登入']
 ];
@@ -244,6 +246,12 @@ function appUrl_() {
   try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; }
 }
 
+function reportUrl_() {
+  var u = appUrl_();
+  if (!u) return '';
+  return /script\.google/.test(u) ? u + '?p=report' : u.replace(/\/+$/, '') + '/report';
+}
+
 function folder_() {
   var s = getSettings_(), id = s['檔案資料夾ID'];
   if (id) { try { return DriveApp.getFolderById(id); } catch (e) { console.error('無法開啟資料夾 ' + id + '：' + e); } }
@@ -400,7 +408,7 @@ function api_init(tk) {
     people: people_(true).map(publicPerson_),
     settings: s, today: t, now: now_(), equip: EQUIP_LIST, sla: SLA, freqs: FREQS, roles: ROLES,
     defaultMonth: t >= w.start ? nm : t.slice(0, 7),
-    reportUrl: appUrl_() ? appUrl_() + '?p=report' : ''
+    reportUrl: reportUrl_()
   };
 }
 
@@ -1190,6 +1198,13 @@ function monthReport_(month) {
 function api_monthReport(tk, month, makeDoc) {
   var me = requireAdmin_(tk), r = monthReport_(month);
   if (!makeDoc) return r;
+  r.docUrl = makeMonthDoc_(month, me.name, r);
+  return r;
+}
+
+function makeMonthDoc_(month, byName, r) {
+  r = r || monthReport_(month);
+  var me = { name: byName };
   var s = getSettings_();
   var doc = DocumentApp.create(month + ' 月維護報告');
   var b = doc.getBody();
@@ -1217,18 +1232,52 @@ function api_monthReport(tk, month, makeDoc) {
   doc.saveAndClose();
   var file = DriveApp.getFileById(doc.getId());
   try { file.moveTo(subFolder_('月維護報告')); } catch (e) { }
-  r.docUrl = doc.getUrl();
-  return r;
+  return doc.getUrl();
 }
 
 /* ============================== 排程（寄信提醒） ============================== */
 
 function installTriggers() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (['cronSla', 'hourlyJob'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (['cronSla', 'hourlyJob', 'flushQueue'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('cronSla').timeBased().everyMinutes(10).create();
   ScriptApp.newTrigger('hourlyJob').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('flushQueue').timeBased().everyMinutes(1).create();
+}
+
+/** 每分鐘：寄出 Vercel 網頁排進佇列的信、處理工作（產生月報）。Vercel 不能直接寄 Gmail，所以由這裡代寄 */
+function flushQueue() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    var s = getSettings_(), n = now_(), old = addDays_(today_(), -30), del = [];
+    readTable_('寄信佇列').forEach(function (m) {
+      if (m['狀態'] === '待寄') {
+        try {
+          MailApp.sendEmail({ to: m['收件者'], subject: m['主旨'], htmlBody: m['內容'], name: s['系統名稱'] });
+          updateObj_('寄信佇列', m._row, { '狀態': '已寄', '寄出時間': n });
+        } catch (e) { updateObj_('寄信佇列', m._row, { '狀態': '失敗', '錯誤': String(e) }); }
+      } else if (m['建立時間'].slice(0, 10) < old) del.push(m._row);
+    });
+    if (del.length) deleteRows_('寄信佇列', del);
+    readTable_('工作佇列').forEach(function (j) {
+      if (j['狀態'] !== '待處理') return;
+      try {
+        if (j['類型'] === '月報') {
+          var who = people_(true).filter(function (p) { return p.email === j['申請人Email']; })[0];
+          var url = makeMonthDoc_(j['參數'], who ? who.name : '系統');
+          updateObj_('工作佇列', j._row, { '狀態': '完成', '完成時間': now_(), '結果': url });
+          sendMailNow_(j['申請人Email'], j['參數'] + ' 月維護報告已產生', '<p>' + esc_(j['參數']) + ' 月維護報告已產生：</p><p><a href="' + url + '">開啟 Google 文件</a></p>');
+        } else updateObj_('工作佇列', j._row, { '狀態': '失敗', '結果': '未知的工作類型' });
+      } catch (e) { updateObj_('工作佇列', j._row, { '狀態': '失敗', '結果': String(e) }); }
+    });
+  } finally { lock.releaseLock(); }
+}
+
+function sendMailNow_(to, subject, html) {
+  var s = getSettings_();
+  MailApp.sendEmail({ to: to, subject: '【' + s['系統名稱'] + '】' + subject, htmlBody: '<div style="font-family:Microsoft JhengHei,PingFang TC,sans-serif;font-size:14px;line-height:1.7">' + html + '</div>', name: s['系統名稱'] });
 }
 
 /** 每 10 分鐘：叫修單回覆／排除逾期、第一級事件報告提醒 */

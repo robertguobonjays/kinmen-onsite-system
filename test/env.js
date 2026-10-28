@@ -67,7 +67,7 @@ const ctx = {
   },
   Session: { getActiveUser: () => ({ getEmail: () => ACTIVE }), getEffectiveUser: () => ({ getEmail: () => 'boss@corp.com' }) },
   MailApp: { sendEmail: o => mails.push(o) },
-  LockService: { getScriptLock: () => ({ waitLock() { }, releaseLock() { } }) },
+  LockService: { getScriptLock: () => ({ waitLock() { }, tryLock() { return true; }, releaseLock() { } }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, getProperties: () => ({ ...props }), deleteProperty: k => delete props[k] }) },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
   DriveApp: {
@@ -90,4 +90,4 @@ vm.createContext(ctx);
 vm.runInContext(code, ctx);
 const G = ctx;
 function setNow(s) { FAKE_NOW = new RealDate(s.replace(' ', 'T') + ':00+08:00').getTime(); }
-module.exports = { G, sheets, mails, props, cache, folders, setNow, as: e => { ACTIVE = e; } };
+module.exports = { FDate, G, sheets, mails, props, cache, folders, setNow, as: e => { ACTIVE = e; } };
