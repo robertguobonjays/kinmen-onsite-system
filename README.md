@@ -17,10 +17,18 @@ Google Apps Script 網頁＋Google 試算表當資料庫，整合駐點人員的
 | `test/` | 模擬 Apps Script 環境的自動測試 |
 | `docs/` | 安裝與使用說明（`mkdoc.py` 產生 docx） |
 
+## Google 上的位置
+- 試算表（資料庫）：https://docs.google.com/spreadsheets/d/1lUR5UJSrvrYCNZT14-sXg41rnZIWBbQTVqu4cz0cQxE
+- Apps Script：https://script.google.com/d/1Ly9JjQxvyS8ynG_QomiXOlu3iIyNfE-T9hgnQ6YK5UMxubBb35sGVwUo/edit
+- 網頁（v2.0 部署）：https://script.google.com/macros/s/AKfycbyAbd9Kz8-Xe0qdFScCi87vR8VOalclsW0eo_eOjEPkFgbVdD2m4tE6ZA94HpBD4AAz/exec
+- 機關報修頁：上面網址加 `?p=report`
+- 雲端硬碟資料夾：https://drive.google.com/drive/folders/1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1
+- clasp 帳號：`clasp --user work`（robertguo@bonjays.com）
+
 ## 開發
 ```bash
 npm install        # 只需第一次（測試用 jsdom）
 npm test           # 後端流程＋網頁畫面測試
-clasp push         # 上傳到 Apps Script（.clasp.json 的 rootDir 是 src）
+clasp --user work push      # 上傳到 Apps Script（.clasp.json 的 rootDir 是 src）
+clasp --user work redeploy AKfycbyAbd9Kz8-Xe0qdFScCi87vR8VOalclsW0eo_eOjEPkFgbVdD2m4tE6ZA94HpBD4AAz -d "說明"   # 更新網頁（網址不變）
 ```
-上傳後在 Apps Script「部署 → 管理部署作業 → 編輯 → 新版本」，網址不變。
