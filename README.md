@@ -4,27 +4,27 @@
 
 ## 架構
 ```
-瀏覽器 ──► Vercel（public/ 網頁 ＋ api/ 伺服器程式）──► Google 試算表（資料庫）
-                     │                                   ▲
-                     └─ 照片／附件 → Vercel Blob           │
-Apps Script（綁定同一份試算表）──────────────────────────────┘
-  每分鐘 flushQueue：寄出「寄信佇列」、產生月報（工作佇列）
+瀏覽器 ──► Vercel（public/ 網頁 ＋ api/ 伺服器程式）──► Apps Script doPost ──► Google 試算表（資料庫）
+                     └─ 照片／附件 → Vercel Blob              （直接寄信、上鎖、產生月報）
+Apps Script 排程：
   每 10 分鐘 cronSla：叫修逾期提醒；每小時 hourlyJob：登記／預排／巡檢／值班提醒
 ```
-- 商業邏輯只有一份：`src/Code.gs`。Vercel 的 `lib/runtime.js` 在 Node 上執行它（模擬 SpreadsheetApp，寫入轉成 Sheets API batchUpdate）。
+- 商業邏輯只有一份：`src/Code.gs`。Vercel 的 `api/call` 預設把請求轉給 Apps Script 網頁應用程式（環境變數 `GAS_URL`）。
+- 公司 Google 組織政策禁止建立服務帳戶金鑰，所以採用轉呼叫。備用模式：不設 `GAS_URL`、改設 `GOOGLE_SERVICE_ACCOUNT_JSON` 時，`lib/runtime.js` 會直接在 Node 上執行 Code.gs（模擬 SpreadsheetApp，寫入轉成 Sheets API batchUpdate，信件改進「寄信佇列」由 Apps Script flushQueue 寄出）。
 - 網頁只有一份：`src/Index.html`、`src/Report.html`；Vercel 建置時加上 `web/gas-shim.js`，把 `google.script.run` 轉成呼叫 `/api/call`。
-- 同時只有少數人操作的前提下設計（每次請求讀整份試算表）；多人同時寫入同一張表時，後寫的可能覆蓋先寫的列位。
 
 ## Vercel 環境變數
 | 名稱 | 內容 |
 |---|---|
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Google 服務帳戶金鑰 JSON（整段，或 base64） |
-| `SHEET_ID` | 試算表 ID |
+| `GAS_URL` | Apps Script 網頁應用程式網址（/exec） |
+| `SHEET_ID` | 試算表 ID（備用模式用） |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | 備用模式才需要：服務帳戶金鑰 JSON |
 | `SESSION_SECRET` | 登入簽章用的隨機字串（32 字以上） |
 | `BLOB_READ_WRITE_TOKEN` | 連結 Vercel Blob 儲存區後自動產生 |
 | `APP_URL` | （選填）正式網址，例 `https://kinmen-onsite-system.vercel.app` |
 
-服務帳戶的 Email 要加到試算表的「共用 → 編輯者」。
+
+Apps Script 網頁應用程式的部署要設「執行身分：我、存取權：所有人」；改 Code.gs 後要 `clasp --user work push` 並 `clasp --user work redeploy <部署ID>`（網址不變）。
 
 ## 功能
 - **帳號與權限**：管理員／主管／駐點，帳號密碼登入（密碼只存雜湊），可新增、停用、重設密碼

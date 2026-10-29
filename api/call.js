@@ -1,5 +1,5 @@
 // POST /api/call  { fn: 'api_xxx', args: [...] } → { ok, result } 或 { error }
-const rt = require('../lib/runtime');
+const backend = require('../lib/backend');
 
 const DENY = new Set(['api_uploadPhoto', 'api_publicUpload', 'api_uploadFile']); // 檔案走 /api/upload
 
@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
   const fn = body && body.fn, args = body && body.args;
   if (typeof fn !== 'string' || !/^api_[A-Za-z]+$/.test(fn) || DENY.has(fn)) return res.status(400).json({ error: '不支援的功能' });
   try {
-    const result = await rt.call(fn, Array.isArray(args) ? args : [], { origin: origin(req) });
+    const result = await backend.call(fn, Array.isArray(args) ? args : [], origin(req));
     res.status(200).json({ ok: true, result });
   } catch (e) {
     const msg = String((e && e.message) || e);

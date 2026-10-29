@@ -64,6 +64,22 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+/** Vercel 後端轉呼叫：POST {fn:'api_xxx', args:[...], origin:'https://…vercel.app'} → JSON { ok, result } 或 { error } */
+function doPost(e) {
+  var out;
+  try {
+    var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    var fn = String(body.fn || '');
+    if (!/^api_[A-Za-z]+$/.test(fn) || typeof globalThis[fn] !== 'function') throw new Error('不支援的功能');
+    if (body.origin && /^https:\/\/[\w.-]+$/.test(body.origin) && !getSettings_()['系統網址']) setSetting_('系統網址', body.origin);
+    var r = globalThis[fn].apply(null, Array.isArray(body.args) ? body.args : []);
+    out = { ok: true, result: r === undefined ? null : r };
+  } catch (err) {
+    out = { error: String((err && err.message) || err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
 function onOpen() {
   try {
     SpreadsheetApp.getUi().createMenu('駐點系統')

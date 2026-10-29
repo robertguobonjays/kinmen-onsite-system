@@ -3,6 +3,7 @@
 //  api_publicUpload(name, dataUrl)：機關報修頁上傳照片（有頻率限制）
 //  api_uploadFile(token, name, dataUrl)：主管上傳 SOP 附件
 const rt = require('../lib/runtime');
+const backend = require('../lib/backend');
 
 const MAX = 4 * 1024 * 1024; // Vercel 單次請求上限約 4.5MB
 
@@ -22,11 +23,11 @@ module.exports = async (req, res) => {
       folder = '叫修照片';
     } else if (fn === 'api_uploadPhoto') {
       [, name, dataUrl] = args;
-      await rt.call('api_init', [args[0]]); // 檢查登入
+      await backend.call('api_init', [args[0]]); // 檢查登入
       folder = '叫修照片';
     } else if (fn === 'api_uploadFile') {
       [, name, dataUrl] = args;
-      await rt.call('api_listPeople', [args[0]]); // 檢查主管權限
+      await backend.call('api_listPeople', [args[0]]); // 檢查主管權限
       folder = 'SOP文件'; imageOnly = false;
     } else return res.status(400).json({ error: '不支援的功能' });
 

@@ -84,7 +84,8 @@ const ctx = {
     ParagraphHeading: {},
     create: t => { const body = { items: [], appendParagraph(x) { this.items.push(x); return { setHeading() { } }; }, appendTable(rows) { rows.forEach(r => r.forEach(c => { if (typeof c !== 'string') throw new Error('table cell not string: ' + c); })); this.items.push(rows); } }; return { getBody: () => body, saveAndClose() { }, getId: () => 'DOC1', getUrl: () => 'https://docs.google.com/DOC1' }; }
   },
-  HtmlService: {}
+  HtmlService: {},
+  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) }
 };
 vm.createContext(ctx);
 vm.runInContext(code, ctx);
