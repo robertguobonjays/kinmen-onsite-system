@@ -5,23 +5,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root { --bg: #f4f6f9; --card: #fff; --text: #1f2933; --muted: #6b7785; --line: #dde3ea; --primary: #0b5cad; --primary-weak: #e6f0fb; --ok: #1e8e3e; --ok-weak: #e6f4ea; --bad: #c62828; }
+  :root { --bg: #f5f6f8; --card: #fff; --text: #1d2430; --muted: #8a94a3; --line: #dfe3e8; --primary: #1f6feb; --primary-weak: #eaf2ff; --ok: #1a8f4c; --ok-weak: #e8f6ee; --bad: #d93a3a; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; font-size: 16px; line-height: 1.6; }
-  header { background: var(--primary); color: #fff; padding: 14px 16px; }
-  header h1 { margin: 0; font-size: 18px; }
-  header div { font-size: 13px; opacity: .9; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  header > * { max-width: 608px; margin-left: auto !important; margin-right: auto !important; }
+  header { background: #fff; border-bottom: 1px solid #eceef2; padding: 14px 16px; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  header div { font-size: 13px; color: var(--muted); }
   main { max-width: 640px; margin: 0 auto; padding: 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card { background: var(--card); border-radius: 14px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(20,30,50,.04); }
   label.f { display: block; margin: 14px 0 4px; font-size: 14px; color: var(--muted); }
   label.f b { color: var(--bad); }
-  input[type=text], input[type=tel], textarea, select { width: 100%; font-family: inherit; font-size: 16px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  input[type=text], input[type=tel], textarea, select { width: 100%; font-family: inherit; font-size: 16px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
   textarea { min-height: 110px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chips label { border: 1px solid var(--line); border-radius: 18px; padding: 6px 14px; cursor: pointer; }
+  .chips label { border: 1px solid var(--line); border-radius: 10px; padding: 6px 14px; cursor: pointer; }
   .chips input { display: none; }
-  .chips label:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); color: var(--primary); font-weight: bold; }
-  .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 6px 0; cursor: pointer; }
+  .chips label:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); color: var(--primary); font-weight: 600; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0; cursor: pointer; }
   .opt:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); }
   .btn { width: 100%; border: 0; background: var(--primary); color: #fff; padding: 13px; border-radius: 10px; font-size: 17px; font-family: inherit; cursor: pointer; margin-top: 18px; }
   .btn:disabled { opacity: .5; }

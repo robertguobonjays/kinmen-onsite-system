@@ -6,114 +6,155 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
-    --bg: #f4f6f9; --card: #fff; --text: #1f2933; --muted: #6b7785; --line: #dde3ea;
-    --primary: #0b5cad; --primary-weak: #e6f0fb; --ok: #1e8e3e; --ok-weak: #e6f4ea;
-    --warn: #b06000; --warn-weak: #fef3e0; --bad: #c62828; --bad-weak: #fdecea;
-    --radius: 10px;
+    --bg: #f5f6f8; --card: #fff; --text: #1d2430; --muted: #8a94a3; --line: #eceef2;
+    --primary: #1f6feb; --primary-weak: #eaf2ff; --ok: #1a8f4c; --ok-weak: #e8f6ee;
+    --warn: #b7791f; --warn-weak: #fdf4e3; --bad: #d93a3a; --bad-weak: #fdeeee;
+    --radius: 14px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
-    font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; font-size: 15px; line-height: 1.55; }
-  header { background: var(--primary); color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  header h1 { font-size: 17px; margin: 0; flex: 1; min-width: 180px; }
-  header .who { font-size: 13px; opacity: .9; }
-  nav { background: #fff; border-bottom: 1px solid var(--line); display: flex; overflow-x: auto; position: sticky; top: 0; z-index: 5; }
-  nav button { border: 0; background: none; padding: 12px 16px; font-size: 15px; color: var(--muted); cursor: pointer; white-space: nowrap; border-bottom: 3px solid transparent; font-family: inherit; }
-  nav button.on { color: var(--primary); border-bottom-color: var(--primary); font-weight: bold; }
-  nav .dot { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; margin-left: 4px; line-height: 18px; text-align: center; }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
-  .card h2 { font-size: 16px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .card h2 .sp { flex: 1; }
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  .big { font-size: 22px; font-weight: bold; }
+    font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: var(--primary); }
+  header { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .hd-in { max-width: 1000px; margin: 0 auto; padding: 0 16px; height: 56px; display: flex; align-items: center; gap: 20px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  nav { display: flex; gap: 2px; flex: 1; height: 100%; }
+  nav button { border: 0; background: none; padding: 0 12px; font-size: 14px; color: var(--muted); cursor: pointer; white-space: nowrap; font-family: inherit; position: relative; display: flex; align-items: center; gap: 6px; }
+  nav button svg { display: none; }
+  nav button.on { color: var(--text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--text); }
+  nav .dot { position: absolute; top: 12px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--bad); }
+  .who { position: relative; margin-left: auto; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--primary-weak); color: var(--primary); font-weight: 600; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .menu { position: absolute; right: 0; top: 42px; background: #fff; border-radius: 12px; box-shadow: 0 8px 30px rgba(20,30,50,.14); min-width: 170px; padding: 6px; display: none; }
+  .menu.on { display: block; }
+  .menu .me { padding: 8px 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+  .menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; font-family: inherit; color: var(--text); }
+  .menu button:hover { background: var(--bg); }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(20,30,50,.04); }
+  .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 .sp, .sp { flex: 1; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .big { font-size: 22px; font-weight: 600; }
   .muted { color: var(--muted); font-size: 13px; }
+  .hello { margin: 2px 2px 14px; }
+  .hello b { font-size: 20px; font-weight: 600; display: block; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .btn { border: 1px solid var(--line); background: #fff; color: var(--text); padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; font-family: inherit; }
-  .btn:hover { border-color: var(--primary); }
+  .btn { border: 1px solid var(--line); background: #fff; color: var(--text); padding: 8px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; font-family: inherit; line-height: 1.3; text-decoration: none; display: inline-block; }
+  .btn:hover { background: #f8f9fb; }
   .btn.p { background: var(--primary); color: #fff; border-color: var(--primary); }
   .btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
-  .btn.bad { background: #fff; color: var(--bad); border-color: var(--bad); }
-  .btn.sm { padding: 4px 10px; font-size: 13px; }
+  .btn.bad { color: var(--bad); }
+  .btn.sm { padding: 5px 11px; font-size: 13px; border-radius: 8px; }
+  .btn.ghost { border-color: transparent; background: none; color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); background: var(--bg); }
   .btn:disabled { opacity: .5; cursor: default; }
-  .tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #eef1f4; color: var(--muted); white-space: nowrap; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; background: #f1f3f6; color: var(--muted); white-space: nowrap; font-weight: 500; }
   .tag.ok { background: var(--ok-weak); color: var(--ok); }
   .tag.warn { background: var(--warn-weak); color: var(--warn); }
   .tag.bad { background: var(--bad-weak); color: var(--bad); }
   .tag.p { background: var(--primary-weak); color: var(--primary); }
-  .lv1 { background: var(--bad); color: #fff; } .lv2 { background: var(--warn); color: #fff; } .lv3 { background: #546e7a; color: #fff; }
-  input, select, textarea { font-family: inherit; font-size: 15px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: #fff; max-width: 100%; }
+  .lv1 { background: var(--bad-weak); color: var(--bad); } .lv2 { background: var(--warn-weak); color: var(--warn); } .lv3 { background: #f1f3f6; color: #5b6573; }
+  input, select, textarea { font-family: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid #dfe3e8; border-radius: 10px; background: #fff; max-width: 100%; color: var(--text); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
+  input[type=checkbox], input[type=radio] { accent-color: var(--primary); }
   textarea { width: 100%; min-height: 80px; }
-  label.f { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
+  label.f { display: block; margin: 12px 0 5px; font-size: 13px; color: var(--muted); }
   .full { width: 100%; }
   table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
-  table.t th, table.t td { border-bottom: 1px solid var(--line); padding: 7px 6px; text-align: left; vertical-align: top; }
-  table.t th { background: #f7f9fb; font-weight: normal; color: var(--muted); font-size: 13px; }
+  table.t th, table.t td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: middle; }
+  table.t th { font-weight: 500; color: var(--muted); font-size: 12px; }
+  table.t tr:last-child td { border-bottom: 0; }
   .tw { overflow-x: auto; }
-  .list-item { padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .list-item { padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .list-item:last-child { border-bottom: 0; }
   .list-item:hover { background: #fafbfc; }
+  /* 待辦 */
+  .todo { display: flex; align-items: center; gap: 12px; padding: 13px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .todo:last-child { border-bottom: 0; }
+  .todo .ic { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex: none; }
+  .todo .ic.bad { background: var(--bad); } .todo .ic.p { background: var(--primary); }
+  .todo .tx { flex: 1; }
+  .todo .go { color: var(--muted); }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+  .kv span:first-child { color: var(--muted); white-space: nowrap; }
   /* 月曆 */
   .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .cal .hd { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
-  .cal .d { background: #fff; border: 1px solid var(--line); border-radius: 8px; min-height: 78px; padding: 4px 5px; cursor: pointer; font-size: 12px; position: relative; overflow: hidden; }
-  .cal .d.past { opacity: .55; }
-  .cal .d.today { outline: 2px solid var(--primary); }
-  .cal .d.mineoff { background: repeating-linear-gradient(45deg, #fff, #fff 6px, #fdecea 6px, #fdecea 12px); }
+  .cal .d { background: #fff; border: 1px solid var(--line); border-radius: 10px; min-height: 72px; padding: 5px 6px; cursor: pointer; font-size: 12px; position: relative; overflow: hidden; }
+  .cal .d:hover { border-color: #cfd5dd; }
+  .cal .d.past { opacity: .45; }
+  .cal .d.today { border-color: var(--text); }
+  .cal .d.mineoff { background: var(--bad-weak); }
   .cal .d.gap { border-color: var(--bad); }
-  .cal .n { font-weight: bold; font-size: 13px; }
+  .cal .n { font-size: 13px; color: #5b6573; }
   .cal .we .n { color: var(--bad); }
-  .cal .who { display: block; margin-top: 3px; padding: 2px 4px; border-radius: 5px; color: #fff; font-weight: bold; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal .who { display: block; margin-top: 4px; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cal .off { display: block; color: var(--bad); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cal .mk { position: absolute; right: 4px; top: 3px; font-size: 10px; color: var(--muted); }
+  .cal .mk { position: absolute; right: 6px; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); font-size: 0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; }
   /* 巡檢 */
-  .chk { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: center; }
+  .chk { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 11px 0; border-bottom: 1px solid var(--line); align-items: center; }
   .chk:last-child { border-bottom: 0; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .seg button { border: 0; background: #fff; padding: 6px 14px; cursor: pointer; font-size: 14px; font-family: inherit; }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button.on-ok { background: var(--ok); color: #fff; }
-  .seg button.on-bad { background: var(--bad); color: #fff; }
+  .seg { display: inline-flex; background: #f1f3f6; border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: none; padding: 6px 14px; cursor: pointer; font-size: 14px; font-family: inherit; border-radius: 8px; color: #5b6573; }
+  .seg button.on-ok { background: #fff; color: var(--ok); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .seg button.on-bad { background: #fff; color: var(--bad); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .chk .ext { grid-column: 1 / -1; display: none; gap: 8px; flex-wrap: wrap; align-items: center; }
   .chk.abn .ext { display: flex; }
   /* 選項 chip */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chips label { border: 1px solid var(--line); border-radius: 16px; padding: 4px 12px; cursor: pointer; font-size: 14px; }
+  .chips label { border: 1px solid #dfe3e8; border-radius: 10px; padding: 5px 12px; cursor: pointer; font-size: 14px; }
   .chips input { display: none; }
-  .chips input:checked + span { color: var(--primary); font-weight: bold; }
+  .chips input:checked + span { color: var(--primary); font-weight: 600; }
   .chips label:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); }
-  .lvbox { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 4px 0; cursor: pointer; display: flex; gap: 8px; align-items: flex-start; }
+  .lvbox { border: 1px solid #dfe3e8; border-radius: 10px; padding: 9px 12px; margin: 6px 0; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; }
   .lvbox:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); }
   /* SOP 內容 */
-  .doc h3 { font-size: 15px; margin: 16px 0 6px; color: var(--primary); }
+  .doc h3 { font-size: 15px; margin: 18px 0 6px; }
   .doc ul, .doc ol { margin: 4px 0; padding-left: 22px; }
   .doc p { margin: 4px 0; }
-  .timeline { font-size: 13px; background: #f7f9fb; border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; }
+  .timeline { font-size: 13px; background: var(--bg); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
   .photos { display: flex; gap: 8px; flex-wrap: wrap; }
-  .photos img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
-  .punch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
-  .punch button { border: 0; border-radius: 12px; padding: 16px 8px; font-size: 18px; font-weight: bold; color: #fff; cursor: pointer; font-family: inherit; }
-  .punch .in { background: var(--ok); } .punch .out { background: #455a64; }
-  .punch small { display: block; font-size: 13px; font-weight: normal; opacity: .9; margin-top: 2px; }
-  .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); vertical-align: middle; margin-left: 4px; }
-  #pPrev { max-width: 100%; max-height: 260px; border-radius: 10px; display: none; margin-top: 8px; }
-  .camera-btn { display: block; text-align: center; border: 2px dashed var(--line); border-radius: 12px; padding: 22px 10px; cursor: pointer; color: var(--muted); }
+  .photos img { width: 100px; height: 100px; object-fit: cover; border-radius: 10px; }
+  /* 叫修列表 */
+  .tk { display: flex; gap: 12px; padding: 13px 2px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .tk:last-child { border-bottom: 0; }
+  .tk .bar { width: 4px; border-radius: 2px; flex: none; background: #c9cfd8; }
+  .tk .bar.l1 { background: var(--bad); } .tk .bar.l2 { background: var(--warn); }
+  .tk .bd { flex: 1; min-width: 0; }
+  .tk .t1 { display: flex; gap: 8px; align-items: center; }
+  .tk .t1 b { font-weight: 600; }
+  .tk .sym { color: #4a5361; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 打卡 */
+  .punch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .punch button { border: 0; border-radius: 12px; padding: 18px 8px; font-size: 17px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .punch .in { background: var(--text); color: #fff; } .punch .out { background: #f1f3f6; color: var(--text); }
+  .punch button.done { background: var(--ok-weak); color: var(--ok); }
+  .punch small { display: block; font-size: 13px; font-weight: normal; opacity: .75; margin-top: 2px; }
+  .thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 8px; vertical-align: middle; margin-left: 6px; background: #f1f3f6; }
+  #pPrev { max-width: 100%; max-height: 260px; border-radius: 12px; display: none; margin-top: 10px; }
+  .camera-btn { display: block; text-align: center; background: var(--bg); border-radius: 12px; padding: 26px 10px; cursor: pointer; color: #5b6573; }
   .camera-btn input { display: none; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filters input[type=date] { width: 150px; }
   /* modal / toast */
-  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: flex-start; justify-content: center; z-index: 20; overflow-y: auto; padding: 24px 12px; }
+  .mask { position: fixed; inset: 0; background: rgba(15,20,30,.35); display: none; align-items: flex-start; justify-content: center; z-index: 20; overflow-y: auto; padding: 32px 12px; }
   .mask.on { display: flex; }
-  .modal { background: #fff; border-radius: 12px; width: 100%; max-width: 640px; padding: 16px 18px; }
-  .modal h3 { margin: 0 0 10px; font-size: 17px; display: flex; gap: 8px; align-items: center; }
-  .modal h3 .x { margin-left: auto; cursor: pointer; font-size: 22px; color: var(--muted); border: 0; background: none; }
-  .modal .foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
-  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #263238; color: #fff; padding: 10px 18px; border-radius: 8px; display: none; z-index: 30; max-width: 90vw; }
+  .modal { background: #fff; border-radius: 16px; width: 100%; max-width: 560px; padding: 20px 22px; box-shadow: 0 20px 60px rgba(15,20,30,.2); }
+  .modal h3 { margin: 0 0 12px; font-size: 17px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .modal h3 .x { margin-left: auto; cursor: pointer; font-size: 22px; color: var(--muted); border: 0; background: none; line-height: 1; }
+  .modal .foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
+  #toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--text); color: #fff; padding: 10px 18px; border-radius: 10px; display: none; z-index: 30; max-width: 90vw; font-size: 14px; }
   #toast.bad { background: var(--bad); }
-  #loading { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--primary); display: none; z-index: 40; animation: ld 1s infinite; }
+  #loading { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--primary); display: none; z-index: 40; animation: ld 1s infinite; }
   @keyframes ld { 0% { opacity: .3 } 50% { opacity: 1 } 100% { opacity: .3 } }
-  .sub { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
-  .sub button { border: 1px solid var(--line); background: #fff; padding: 6px 14px; border-radius: 18px; cursor: pointer; font-family: inherit; font-size: 14px; }
-  .sub button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .empty { color: var(--muted); padding: 10px 0; }
+  .sub { display: inline-flex; background: #e9ecf0; border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sub button { border: 0; background: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; color: #5b6573; }
+  .sub button.on { background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .empty { color: var(--muted); padding: 14px 0; text-align: center; font-size: 14px; }
   #print { display: none; }
   @media print {
     body.printing > *:not(#print) { display: none !important; }
@@ -122,23 +163,31 @@
     #print th, #print td { border: 1px solid #000; padding: 5px; text-align: left; vertical-align: top; }
     #print h2 { text-align: center; }
   }
-  @media (max-width: 600px) {
-    main { padding: 10px; }
+  /* 手機：選單改到底部 */
+  @media (max-width: 760px) {
+    .hd-in { height: 52px; }
+    nav { position: fixed; left: 0; right: 0; bottom: 0; height: auto; background: #fff; border-top: 1px solid var(--line); gap: 0; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+    nav button { flex: 1; flex-direction: column; gap: 2px; padding: 7px 0 6px; font-size: 11px; }
+    nav button svg { display: block; width: 22px; height: 22px; }
+    nav button.on { box-shadow: none; color: var(--primary); }
+    nav .dot { top: 5px; right: calc(50% - 16px); }
+    main { padding: 14px 12px 90px; }
+    .card { padding: 16px; }
     .cal { gap: 2px; }
-    .cal .d { min-height: 64px; padding: 3px; }
-    .cal .who { font-size: 11px; padding: 1px 2px; }
-    .card { padding: 12px; }
-    header h1 { font-size: 16px; }
-    nav button { padding: 11px 12px; font-size: 14px; }
+    .cal .d { min-height: 58px; padding: 3px; border-radius: 8px; }
+    .cal .who { font-size: 11px; padding: 1px 3px; }
     table.t { font-size: 13px; }
-    .modal { padding: 14px; }
+    .modal { padding: 18px; }
+    .filters input[type=date] { flex: 1; width: auto; min-width: 0; }
+    .filters select { flex-basis: 100%; }
+    .card h2 > .row { width: 100%; justify-content: flex-end; }
+    #toast { bottom: 84px; }
   }
 </style>
 </head>
 <body>
 <div id="loading"></div>
-<header><h1 id="appTitle">駐點維運系統</h1><span class="who" id="who"></span></header>
-<nav id="nav"></nav>
+<header><div class="hd-in"><h1 id="appTitle">駐點維運系統</h1><nav id="nav"></nav><div class="who" id="who"></div></div></header>
 <main id="main"><div class="card">載入中…</div></main>
 <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
 <div id="toast"></div>
@@ -176,6 +225,7 @@ function toast(msg, bad) { var t = $('toast'); t.textContent = msg; t.className 
 function modal(html) { $('modal').innerHTML = html; $('mask').classList.add('on'); }
 function closeModal() { APP.lockModal = false; $('mask').classList.remove('on'); }
 $('mask').addEventListener('click', function (e) { if (e.target === $('mask') && !APP.lockModal) closeModal(); });
+document.addEventListener('click', function () { var m = $('menu'); if (m) m.classList.remove('on'); });
 function md(d) { var p = d.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
 function wdOf(d) { var w = new Date(d + 'T12:00:00+08:00').getUTCDay(); return w === 0 ? 7 : w; } // 以台灣日期計
 function addDays(d, n) { var t = new Date(d + 'T12:00:00+08:00'); t.setTime(t.getTime() + n * 86400000); return tw(t).slice(0, 10); }
@@ -259,7 +309,9 @@ function enter(mustChange) {
     APP.inspDate = r.today;
     $('appTitle').textContent = r.settings['系統名稱'];
     document.title = r.settings['系統名稱'];
-    $('who').innerHTML = esc(r.me.name) + '（' + esc(r.me.role) + '） <button class="btn sm" onclick="pwForm()">改密碼</button> <button class="btn sm" onclick="logout()">登出</button>';
+    $('who').innerHTML = '<button class="avatar" onclick="event.stopPropagation();$(\'menu\').classList.toggle(\'on\')" title="' + esc(r.me.name) + '">' + esc(r.me.name.slice(0, 1)) + '</button>' +
+      '<div class="menu" id="menu"><div class="me"><b>' + esc(r.me.name) + '</b><div class="muted">' + esc(r.me.role) + '</div></div>' +
+      '<button onclick="pwForm()">改密碼</button><button onclick="logout()">登出</button></div>';
     renderNav();
     go(location.hash ? location.hash.slice(1) : 'home');
     if (mustChange || r.me.mustChange) pwForm(true);
@@ -270,12 +322,11 @@ function enter(mustChange) {
 }
 function showLogin(msg) {
   $('nav').innerHTML = ''; $('who').innerHTML = ''; closeModal();
-  $('main').innerHTML = '<div class="card" style="max-width:380px;margin:40px auto"><h2>登入</h2>' +
-    (msg ? '<div class="tag warn" style="margin-bottom:8px">' + esc(msg) + '</div>' : '') +
-    '<label class="f">帳號（或 Email）</label><input id="lgA" class="full" autocomplete="username" autocapitalize="none">' +
-    '<label class="f">密碼</label><input id="lgP" type="password" class="full" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')doLogin()">' +
-    '<div class="foot"><button class="btn p full" id="lgBtn" onclick="doLogin()">登入</button></div>' +
-    '<div class="muted">忘記密碼請找管理員重設。</div></div>';
+  $('main').innerHTML = '<div class="card" style="max-width:360px;margin:48px auto;padding:28px 24px"><h2 style="font-size:20px;margin-bottom:4px">登入</h2>' +
+    '<div class="muted" style="margin-bottom:8px">' + (msg ? esc(msg) : '忘記密碼請找管理員重設') + '</div>' +
+    '<input id="lgA" class="full" autocomplete="username" autocapitalize="none" placeholder="帳號或 Email" style="margin-top:10px">' +
+    '<input id="lgP" type="password" class="full" autocomplete="current-password" placeholder="密碼" style="margin-top:10px" onkeydown="if(event.key===\'Enter\')doLogin()">' +
+    '<button class="btn p full" id="lgBtn" onclick="doLogin()" style="margin-top:16px;padding:11px">登入</button></div>';
   setTimeout(function () { var a = $('lgA'); if (a) a.focus(); }, 50);
 }
 function doLogin() {
@@ -300,12 +351,22 @@ function pwSave() {
   if ($('pwN').value !== $('pwN2').value) return toast('兩次新密碼不一樣', true);
   api('api_changePassword', $('pwO').value, $('pwN').value).then(function () { APP.init.me.mustChange = false; closeModal(); toast('密碼已更新'); });
 }
-var PAGES = [['home', '首頁'], ['punch', '打卡'], ['schedule', '班表'], ['tickets', '叫修回報'], ['insp', '巡檢'], ['sop', 'SOP／教育訓練'], ['admin', '管理']];
+var PAGES = [['home', '首頁'], ['punch', '打卡'], ['schedule', '班表'], ['tickets', '叫修'], ['insp', '巡檢'], ['sop', 'SOP'], ['admin', '管理']];
+var ICONS = { // 手機底部選單圖示（線條）
+  home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  punch: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  schedule: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  tickets: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
+  insp: '<path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>',
+  sop: '<path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4zM20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z"/>',
+  admin: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
+};
 function renderNav(badges) {
   badges = badges || APP.badges || {};
   APP.badges = badges;
   $('nav').innerHTML = PAGES.filter(function (p) { return p[0] !== 'admin' || isAdmin(); }).map(function (p) {
-    return '<button class="' + (APP.page === p[0] ? 'on' : '') + '" onclick="go(\'' + p[0] + '\')">' + p[1] + (badges[p[0]] ? '<span class="dot">' + badges[p[0]] + '</span>' : '') + '</button>';
+    return '<button class="' + (APP.page === p[0] ? 'on' : '') + '" onclick="go(\'' + p[0] + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[p[0]] + '</svg>' +
+      p[1] + (badges[p[0]] ? '<span class="dot"></span>' : '') + '</button>';
   }).join('');
 }
 function go(p) {
@@ -320,36 +381,23 @@ function pageHome() {
   api('api_home').then(function (h) {
     var open = h.tickets, over = open.filter(function (t) { return t.replyOver || t.fixOver; });
     renderNav({ tickets: open.length || '', sop: h.unread.length || '', insp: h.insp['每日'].done ? '' : '!' });
-    var html = punchCard(h.punch, h.today);
-    if (h.leave && h.leave.sched && !h.leave.confirmed) {
-      html += '<div class="card" style="border-color:var(--warn);background:var(--warn-weak)"><b>' + esc(h.leave.month) + ' 班表登記中（' + md(h.leave.start) + '～' + md(h.leave.end) + '）：請點選不能上班的日子，或按「我都可以，聽安排」。</b> ' +
-        '<button class="btn sm p" onclick="APP.month=\'' + h.leave.month + '\';go(\'schedule\')">去登記</button></div>';
-    }
-    if (h.plan) {
-      var pl = h.plan, plTag = { '已發布': 'ok', '草稿': 'warn' }[pl.status] || '';
-      html += '<div class="card"><h2>' + esc(pl.month) + ' 班表<span class="tag ' + plTag + '">' + (pl.status === '草稿' ? '系統已預排・待確認' : esc(pl.status)) + '</span>' +
-        '<span class="muted">登記期間 ' + md(pl.start) + '～' + md(pl.end) + '</span><span class="sp"></span>' +
-        '<button class="btn sm p" onclick="APP.month=\'' + pl.month + '\';go(\'schedule\')">' + (pl.status === '已發布' ? '查看' : '查看預排並調整') + '</button></h2>' +
-        '<div class="row"><span class="muted">已登記：</span>' + (pl.done.length ? pl.done.map(function (n) { return '<span class="tag ok">' + esc(n) + '</span>'; }).join('') : '<span class="muted">無</span>') +
-        '<span class="muted" style="margin-left:8px">未登記：</span>' + (pl.notYet.length ? pl.notYet.map(function (n) { return '<span class="tag warn">' + esc(n) + '</span>'; }).join('') : '<span class="muted">無</span>') + '</div></div>';
-    }
-    html += '<div class="grid">';
-    html += '<div class="card"><h2>今天值班</h2><div class="big">' + esc(h.todayDuty || '（未排班）') + '</div><div class="muted">' + md(h.today) + '（' + WD[wdOf(h.today)] + '） ' + esc(APP.init.settings['上班時間']) + '</div>' +
-      '<div style="margin-top:8px">明天：<b>' + esc(h.tomorrowDuty || '（未排班）') + '</b></div>' +
-      (h.myShifts.length ? '<div class="muted" style="margin-top:6px">我接下來的班：' + h.myShifts.map(function (d) { return md(d) + '(' + WD[wdOf(d)] + ')'; }).join('、') + '</div>' : '') + '</div>';
-    html += '<div class="card"><h2>巡檢<span class="sp"></span><button class="btn sm p" onclick="go(\'insp\')">去巡檢</button></h2>' +
-      ['每日', '每週', '每月', '每季'].map(function (f) {
-        var s = h.insp[f];
-        return '<div class="row" style="margin:4px 0"><span style="width:44px">' + f + '</span>' +
-          (s.done ? '<span class="tag ' + (s.abnormal ? 'bad' : 'ok') + '">' + (s.abnormal ? '完成・異常 ' + s.abnormal : '已完成') + '</span><span class="muted">' + esc(s.by) + ' ' + esc(s.at.slice(5)) + '</span>'
-            : '<span class="tag warn">未完成</span><span class="muted">' + esc(s.label) + '</span>') + '</div>';
-      }).join('') + '</div>';
-    html += '<div class="card"><h2>必讀文件<span class="sp"></span><button class="btn sm" onclick="go(\'sop\')">SOP</button></h2>' +
-      (h.unread.length ? h.unread.map(function (u) { return '<div class="list-item" onclick="APP.openSop=\'' + u.id + '\';go(\'sop\')">📄 ' + esc(u.title) + ' <span class="tag bad">未讀</span></div>'; }).join('')
-        : '<div class="empty">必讀文件都讀過了 👍</div>') + '</div>';
-    html += '</div>';
-    html += '<div class="card"><h2>未結案叫修 <span class="tag">' + open.length + '</span>' + (over.length ? '<span class="tag bad">逾期 ' + over.length + '</span>' : '') +
-      '<span class="sp"></span><button class="btn sm p" onclick="ticketForm()">＋ 新增叫修</button></h2>' + ticketList(open) + '</div>';
+    var hr = Number(nowStr().slice(11, 13)), hi = hr < 11 ? '早安' : hr < 18 ? '午安' : '晚安';
+    var html = '<div class="hello"><b>' + hi + '，' + esc(APP.init.me.name) + '</b><span class="muted">' + Number(h.today.slice(5, 7)) + ' 月 ' + Number(h.today.slice(8)) + ' 日 星期' + WD[wdOf(h.today)] + '</span></div>';
+    html += punchCard(h.punch, h.today);
+    // 待辦：只列需要動手的事
+    var todo = [];
+    var item = function (cls, text, js) { todo.push('<div class="todo" onclick="' + js + '"><span class="ic ' + cls + '"></span><span class="tx">' + text + '</span><span class="go">›</span></div>'); };
+    if (h.leave && h.leave.sched && !h.leave.confirmed) item('', '登記 ' + Number(h.leave.month.slice(5)) + ' 月不能上班的日子<div class="muted">' + md(h.leave.start) + '～' + md(h.leave.end) + ' 登記中</div>', 'APP.month=\'' + h.leave.month + '\';go(\'schedule\')');
+    if (h.plan && h.plan.status !== '已發布') item('p', '確認並發布 ' + Number(h.plan.month.slice(5)) + ' 月班表<div class="muted">' + (h.plan.status === '草稿' ? '系統已預排' : '尚未排班') + (h.plan.notYet.length ? '・未登記：' + h.plan.notYet.map(esc).join('、') : '') + '</div>', 'APP.month=\'' + h.plan.month + '\';go(\'schedule\')');
+    if (open.length) item(over.length ? 'bad' : '', open.length + ' 件叫修未結案' + (over.length ? '<div class="muted" style="color:var(--bad)">' + over.length + ' 件已逾期</div>' : ''), 'go(\'tickets\')');
+    var undone = ['每日', '每週', '每月', '每季'].filter(function (f) { return !h.insp[f].done; });
+    if (undone.length) item('', undone.join('、') + '巡檢未完成', 'go(\'insp\')');
+    if (h.unread.length) item('', h.unread.length + ' 份必讀文件未讀', 'go(\'sop\')');
+    html += '<div class="card"><h2>待辦</h2>' + (todo.length ? todo.join('') : '<div class="empty">目前沒有待辦事項 ✓</div>') + '</div>';
+    html += '<div class="card"><h2>值班</h2>' +
+      '<div class="kv"><span>今天</span><b>' + esc(h.todayDuty || '未排班') + '</b></div>' +
+      '<div class="kv"><span>明天</span><span>' + esc(h.tomorrowDuty || '未排班') + '</span></div>' +
+      (h.myShifts.length ? '<div class="kv"><span>我的下個班</span><span>' + h.myShifts.slice(0, 3).map(function (d) { return md(d) + '（' + WD[wdOf(d)] + '）'; }).join('、') + '</span></div>' : '') + '</div>';
     $('main').innerHTML = html;
   });
 }
@@ -357,23 +405,23 @@ function pageHome() {
 /* ---------- 打卡 ---------- */
 function punchCard(p, today) {
   var m = (p && p.mine) || {}, hrs = (p && p.hours) || { start: '08:00', end: '17:30' };
-  var html = '<div class="card"><h2>今天打卡<span class="muted">' + md(today) + '（' + WD[wdOf(today)] + '）上班 ' + esc(hrs.start) + '・下班 ' + esc(hrs.end) + '</span></h2>' +
-    '<div class="punch"><button class="in" onclick="punchForm(\'上班\')">上班打卡<small>' + (m.in ? '已打 ' + esc(m.in) : '尚未打卡') + '</small></button>' +
-    '<button class="out" onclick="punchForm(\'下班\')">下班打卡<small>' + (m.out ? '已打 ' + esc(m.out) : '尚未打卡') + '</small></button></div>' +
-    (m.note ? '<div class="muted" style="margin-top:6px">' + esc(m.note) + '</div>' : '');
-  if (p && p.duty) {
+  var html = '<div class="card"><h2>打卡<span class="sp"></span><span class="muted" style="font-weight:normal">' + esc(hrs.start) + '－' + esc(hrs.end) + '</span></h2>' +
+    '<div class="punch"><button class="in' + (m.in ? ' done' : '') + '" onclick="punchForm(\'上班\')">上班<small>' + (m.in ? '✓ ' + esc(m.in) : '尚未打卡') + '</small></button>' +
+    '<button class="out' + (m.out ? ' done' : '') + '" onclick="punchForm(\'下班\')">下班<small>' + (m.out ? '✓ ' + esc(m.out) : '尚未打卡') + '</small></button></div>' +
+    (m.note ? '<div class="muted" style="margin-top:8px">' + esc(m.note) + '</div>' : '');
+  if (p && p.duty && p.duty.name !== APP.init.me.name) {
     var d = p.duty.rec || {};
-    html += '<div class="muted" style="margin-top:8px">今天值班 <b>' + esc(p.duty.name) + '</b>：上班 ' + (d.in ? esc(d.in) : '<span class="tag warn">未打卡</span>') + '・下班 ' + (d.out ? esc(d.out) : '<span class="tag">未打卡</span>') + '</div>';
+    html += '<div class="muted" style="margin-top:10px">今天值班 ' + esc(p.duty.name) + '：上班 ' + esc(d.in || '未打卡') + '・下班 ' + esc(d.out || '未打卡') + '</div>';
   }
   return html + '</div>';
 }
 function punchForm(type) {
   APP.punchLoc = '';
   modal('<h3>' + type + '打卡<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<div class="muted">打卡時間以伺服器時間為準（現在約 ' + esc(nowStr().slice(11)) + '）。一定要拍一張照片。</div>' +
-    '<label class="camera-btn" style="margin-top:10px">📷 點這裡拍照<input type="file" id="pPhoto" accept="image/*" capture="user" onchange="punchPreview()"></label>' +
+    '<div class="muted">現在 ' + esc(nowStr().slice(11)) + '・需要拍一張照片</div>' +
+    '<label class="camera-btn" style="margin-top:12px">📷 拍照<input type="file" id="pPhoto" accept="image/*" capture="user" onchange="punchPreview()"></label>' +
     '<img id="pPrev" alt="預覽">' +
-    '<label class="f">備註（選填，例：船班延誤晚到）</label><input id="pNote" class="full" maxlength="100">' +
+    '<input id="pNote" class="full" maxlength="100" placeholder="備註（選填）" style="margin-top:12px">' +
     '<div class="muted" id="pLoc" style="margin-top:6px"></div>' +
     '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" id="pGo" disabled onclick="punchSubmit(\'' + type + '\')">送出' + type + '打卡</button></div>');
   if (navigator.geolocation) {
@@ -416,25 +464,24 @@ function pagePunch() {
   api('api_home').then(function (h) {
     var admin = isAdmin();
     var html = punchCard(h.punch, h.today) +
-      '<div class="card"><h2>打卡紀錄<span class="sp"></span>' + (admin ? '<button class="btn sm" onclick="punchFixForm()">＋ 補登</button>' : '') + '</h2>' +
-      '<div class="row"><input type="date" id="pfF" value="' + APP.pFrom + '"><span>～</span><input type="date" id="pfT" value="' + APP.pTo + '">' +
-      (admin ? '<select id="pfW">' + personOptions(APP.pWho, true) + '</select>' : '') +
-      '<button class="btn p" onclick="APP.pFrom=val(\'pfF\');APP.pTo=val(\'pfT\');APP.pWho=$(\'pfW\')?$(\'pfW\').value:\'\';drawPunchList()">查詢</button></div>' +
-      '<div id="pList" style="margin-top:10px"></div></div>';
+      '<div class="card"><h2>打卡紀錄<span class="sp"></span>' + (admin ? '<button class="btn sm ghost" onclick="punchFixForm()">補登</button>' : '') + '</h2>' +
+      '<div class="filters"><input type="date" id="pfF" value="' + APP.pFrom + '" onchange="pfGo()"><span class="muted">至</span><input type="date" id="pfT" value="' + APP.pTo + '" onchange="pfGo()">' +
+      (admin ? '<select id="pfW" onchange="pfGo()">' + personOptions(APP.pWho, true) + '</select>' : '') + '</div>' +
+      '<div id="pList" style="margin-top:8px"></div></div>';
     if (admin) {
       var m = APP.init.today.slice(0, 7);
-      html += '<div class="card"><h2>匯出出勤簽到表（Word）</h2>' +
-        (window.__VERCEL__ ? '<div class="row"><input type="date" id="exF" value="' + m + '-01"><span>～</span><input type="date" id="exT" value="' + monthEnd(m) + '">' +
+      html += '<div class="card"><h2>匯出出勤簽到表</h2>' +
+        (window.__VERCEL__ ? '<div class="filters"><input type="date" id="exF" value="' + m + '-01"><span class="muted">至</span><input type="date" id="exT" value="' + monthEnd(m) + '">' +
           '<select id="exW">' + personOptions('', true) + '</select></div>' +
-          '<label style="display:block;margin-top:8px"><input type="checkbox" id="exP" checked> 簽到欄附上班打卡照片</label>' +
-          '<div class="muted">依「邦捷_金門駐點人員_出勤簽到表」格式，檔名：金門駐點人員出勤簽到表mmdd-mmdd.docx。區間最多 63 天。</div>' +
-          '<div class="foot"><button class="btn p" id="exGo" onclick="exportAttendance()">下載 Word</button></div>'
+          '<div class="row" style="margin-top:12px"><label class="muted"><input type="checkbox" id="exP" checked> 附打卡照片</label><span class="sp"></span>' +
+          '<button class="btn p" id="exGo" onclick="exportAttendance()">下載 Word</button></div>'
           : '<div class="muted">請從 Vercel 網址開啟系統才能下載 Word。</div>') + '</div>';
     }
     $('main').innerHTML = html;
     drawPunchList();
   });
 }
+function pfGo() { APP.pFrom = val('pfF'); APP.pTo = val('pfT'); APP.pWho = $('pfW') ? $('pfW').value : ''; drawPunchList(); }
 function drawPunchList() {
   api('api_attendance', APP.pFrom, APP.pTo, APP.pWho).then(function (r) {
     APP.att = r;
@@ -443,8 +490,8 @@ function drawPunchList() {
       r.summary.slice().reverse().map(function (x, i) {
         return '<tr' + (isAdmin() ? ' style="cursor:pointer" onclick="punchDetail(\'' + x.date + '\',\'' + esc(x.email) + '\')"' : '') + '><td>' + md(x.date) + '（' + WD[wdOf(x.date)] + '）</td><td>' + esc(x.name) + '</td>' +
           '<td>' + esc(x.in || '—') + img(x.inThumb, x.inPhoto) + '</td><td>' + esc(x.out || '—') + img(x.outThumb, x.outPhoto) + '</td>' +
-          '<td>' + (x.note ? '<span class="tag ' + (/遲到|早退|未打/.test(x.note) ? 'warn' : '') + '">' + esc(x.note) + '</span>' : '') + '</td></tr>';
-      }).join('') + '</table></div>' + (isAdmin() ? '<div class="muted" style="margin-top:6px">點一列可以看每次打卡、修改或刪除。</div>' : '')
+          '<td class="muted"' + (/遲到|早退|未打/.test(x.note) ? ' style="color:var(--warn)"' : '') + '>' + esc(x.note) + '</td></tr>';
+      }).join('') + '</table></div>'
       : '<div class="empty">這段期間沒有打卡紀錄</div>';
   });
 }
@@ -511,29 +558,18 @@ function drawSchedule() {
   var myOff = d.unavail.filter(function (u) { return u.email === me.email; });
   var confirmed = d.confirms.some(function (c) { return c.email === me.email; });
   var stTag2 = { '已發布': 'ok', '草稿': 'warn', '未排班': '' }[d.status];
-  var html = '<div class="card"><h2>' +
-    '<button class="btn sm" onclick="APP.month=shiftMonth(APP.month,-1);pageSchedule()">‹</button>' +
-    '<span style="font-size:18px">' + d.month.replace('-', ' 年 ') + ' 月</span>' +
-    '<button class="btn sm" onclick="APP.month=shiftMonth(APP.month,1);pageSchedule()">›</button>' +
-    '<span class="tag ' + stTag2 + '">' + esc(d.status) + '</span>' + (d.publishedAt ? '<span class="muted">發布於 ' + esc(d.publishedAt) + '</span>' : '') +
-    '<span class="sp"></span>' +
-    (d.visible ? '<button class="btn sm" onclick="printSchedule()">列印</button>' : '') + '</h2>';
-
   var w = d.window;
-  html += '<div class="row" style="margin-bottom:8px"><span class="tag ' + (w.open ? 'warn' : '') + '">登記期間 ' + md(w.start) + '～' + md(w.end) + (w.open ? '・登記中' : (d.today > w.end ? '・已截止' : '・未開始')) + '</span>' +
-    (admin ? '<button class="btn sm" onclick="windowForm()">設定登記期間</button>' : '') + '</div>';
-  if (admin) {
-    var conflicts = d.days.filter(function (x) { return x.conflict; }).length;
-    html += '<div class="row" style="margin-bottom:10px">' +
-      '<button class="btn" onclick="autoSchedule()">重新自動排班</button>' +
-      '<label class="muted"><input type="checkbox" id="keepManual" checked> 保留手動指定的日子</label>' +
-      '<button class="btn ok" onclick="publishSchedule()">' + (d.status === '已發布' ? '重新發布並寄信' : '發布並寄信給大家') + '</button></div>' +
-      (d.status === '草稿' ? '<div class="tag warn" style="margin-bottom:8px">這是系統預排的草稿（' + esc(d.plannedAt.slice(5, 16)) + '），大家還看不到。確認後按「發布」。</div>' : '') +
-      (conflicts ? '<div class="tag bad" style="margin-bottom:8px">有 ' + conflicts + ' 天排到的人登記了不能上班（紅底⚠），請調整</div>' : '') +
-      '<div class="muted" style="margin-bottom:8px">點日期可以手動指定值班人員' + (APP.init.me.sched ? '，或登記自己不能上班' : '') + '。紅字＝那天不能上班的人；「手」＝手動指定。</div>';
-  } else {
-    html += '<div class="muted" style="margin-bottom:8px">👉 點日期＝登記／取消「我這天不能上班」。' + (d.visible ? '' : '<b>本月班表尚未發布。</b>') + '</div>';
-  }
+  var html = '<div class="card"><h2>' +
+    '<button class="btn sm ghost" onclick="APP.month=shiftMonth(APP.month,-1);pageSchedule()">‹</button>' +
+    '<span style="font-size:17px">' + Number(d.month.slice(0, 4)) + ' 年 ' + Number(d.month.slice(5)) + ' 月</span>' +
+    '<button class="btn sm ghost" onclick="APP.month=shiftMonth(APP.month,1);pageSchedule()">›</button>' +
+    '<span class="tag ' + stTag2 + '">' + esc(d.status === '草稿' ? '草稿・大家還看不到' : d.status) + '</span>' +
+    '<span class="sp"></span>' +
+    (d.visible ? '<button class="btn sm ghost" onclick="printSchedule()">列印</button>' : '') +
+    (admin ? '<span class="row"><button class="btn sm" onclick="autoSchedule()">自動排班</button><button class="btn sm p" onclick="publishSchedule()">' + (d.status === '已發布' ? '重新發布' : '發布') + '</button></span>' : '') + '</h2>';
+  var conflicts = admin ? d.days.filter(function (x) { return x.conflict; }).length : 0;
+  if (conflicts) html += '<div class="muted" style="color:var(--bad);margin-bottom:8px">有 ' + conflicts + ' 天排到的人那天不能上班，請點日期調整</div>';
+  if (!admin && !d.visible) html += '<div class="muted" style="margin-bottom:8px">本月班表還沒發布</div>';
   html += '<div class="cal">' + WD.slice(1).map(function (w, i) { return '<div class="hd">' + w + '</div>'; }).join('');
   var first = wdOf(d.days[0].date);
   for (var i = 1; i < first; i++) html += '<div></div>';
@@ -547,30 +583,26 @@ function drawSchedule() {
     if (d.visible && !x.email && d.status !== '未排班') cls.push('gap');
     if (x.conflict) cls.push('gap');
     html += '<div class="' + cls.join(' ') + '"' + (x.conflict ? ' style="background:var(--bad-weak)"' : '') + ' onclick="dayClick(\'' + x.date + '\')">' +
-      '<span class="n">' + Number(x.date.slice(8)) + (x.conflict ? ' ⚠' : '') + '</span>' + (x.manual && admin ? '<span class="mk">手</span>' : '') +
-      (x.email ? '<span class="who" style="background:' + colorOf(x.email) + '">' + esc(x.name) + '</span>' : (d.visible && d.status !== '未排班' ? '<span class="off">缺人</span>' : '')) +
+      '<span class="n">' + Number(x.date.slice(8)) + '</span>' + (x.manual && admin ? '<span class="mk" title="手動指定"></span>' : '') +
+      (x.email ? '<span class="who" style="background:' + colorOf(x.email) + '1c;color:' + colorOf(x.email) + '">' + esc(x.name) + '</span>' : (d.visible && d.status !== '未排班' ? '<span class="off">缺人</span>' : '')) +
       offs.map(function (u) { return '<span class="off">✕ ' + esc(u.name) + '</span>'; }).join('') + '</div>';
   });
-  html += '</div></div>';
+  html += '</div><div class="legend">' + (admin ? '<span>點日期指定值班人員</span>' : '<span>點日期登記／取消「這天不能上班」</span>') +
+    '<span><i style="background:var(--bad-weak)"></i>我不能上班</span><span style="color:var(--bad)">✕ 不能上班的人</span>' + (admin ? '<span><i style="background:var(--muted);border-radius:50%;width:6px;height:6px"></i>手動指定</span>' : '') + '</div></div>';
 
-  html += '<div class="grid">';
+  // 登記：一張卡片看完
+  html += '<div class="card"><h2>' + Number(d.month.slice(5)) + ' 月登記<span class="muted" style="font-weight:normal">' + md(w.start) + '～' + md(w.end) + (w.open ? '・登記中' : (d.today > w.end ? '・已截止' : '・未開始')) + '</span>' +
+    '<span class="sp"></span>' + (admin ? '<button class="btn sm ghost" onclick="windowForm()">設定期間</button>' : '') + '</h2>';
   if (APP.init.me.sched) {
-    html += '<div class="card"><h2>我 ' + esc(d.month) + ' 不能上班的日子</h2>' +
-      (myOff.length ? myOff.map(function (u) { return '<span class="tag bad" style="margin:2px">' + md(u.date) + (u.reason ? ' ' + esc(u.reason) : '') + '</span>'; }).join('') : '<div class="empty">沒有登記</div>') +
-      '<div class="row" style="margin-top:10px">' + (myOff.length
-        ? '<button class="btn ' + (confirmed ? '' : 'p') + '" onclick="confirmMonth()">' + (confirmed ? '已登記好（改了再按一次）' : '我登記好了') + '</button>'
-        : '<button class="btn ' + (confirmed ? '' : 'p') + '" onclick="confirmMonth()">' + (confirmed ? '已回覆：都可以' : '我都可以，聽安排') + '</button>') + '</div>' +
-      '<div class="muted">按下去主管才知道你登記完了；登記期間內沒按，系統每天早上會寄信提醒。</div></div>';
+    html += '<div class="row" style="margin-bottom:12px"><span>我不能上班：' + (myOff.length ? myOff.map(function (u) { return md(u.date); }).join('、') : '<span class="muted">無</span>') + '</span><span class="sp"></span>' +
+      '<button class="btn sm ' + (confirmed ? '' : 'p') + '" onclick="confirmMonth()">' + (confirmed ? '✓ 已回覆' : (myOff.length ? '我登記好了' : '我都可以，聽安排')) + '</button></div>';
   }
-  html += '<div class="card"><h2>登記狀況（' + esc(d.month) + '）</h2>' +
-    d.staff.map(function (p) {
-      var c = d.confirms.filter(function (x) { return x.email === p.email; })[0];
-      var n = d.unavail.filter(function (u) { return u.email === p.email; }).length;
-      return '<div class="row" style="margin:4px 0"><span class="tag" style="background:' + colorOf(p.email) + ';color:#fff">' + esc(p.name) + '</span>' +
-        (c ? '<span class="tag ok">' + esc(c.note || '已登記') + '</span><span class="muted">' + esc(c.at.slice(5)) + '</span>' : '<span class="tag warn">未登記</span>') +
-        '<span class="muted">不能上班 ' + n + ' 天</span>' + (d.visible ? '<span class="muted">・排班 ' + (d.stats[p.email] || 0) + ' 天</span>' : '') + '</div>';
-    }).join('') + '</div>';
-  html += '</div>';
+  html += d.staff.map(function (p) {
+    var c = d.confirms.filter(function (x) { return x.email === p.email; })[0];
+    var n = d.unavail.filter(function (u) { return u.email === p.email; }).length;
+    return '<div class="kv" style="border-top:1px solid var(--line);padding:9px 0"><span class="pill" style="background:' + colorOf(p.email) + '1c;color:' + colorOf(p.email) + '">' + esc(p.name) + '</span>' +
+      '<span class="muted">' + (c ? esc(c.note || '已登記') : '<span style="color:var(--warn)">未登記</span>') + '・不能上班 ' + n + ' 天' + (d.visible ? '・排 ' + (d.stats[p.email] || 0) + ' 天' : '') + '</span></div>';
+  }).join('') + '</div>';
   $('main').innerHTML = html;
 }
 function dayClick(date) {
@@ -633,9 +665,9 @@ function saveShift(date) {
 function autoSchedule() {
   var d = APP.sch;
   var notYet = d.staff.filter(function (p) { return !d.confirms.some(function (c) { return c.email === p.email; }); });
-  var msg = '依「不能上班日」重新自動排 ' + d.month + ' 的班？' + ($('keepManual').checked ? '（手動指定的日子會保留）' : '（手動指定的日子也會重排）') + (notYet.length ? '\n\n注意：' + notYet.map(function (p) { return p.name; }).join('、') + ' 還沒登記好。' : '');
+  var msg = '依大家登記的日子重新自動排 ' + d.month + ' 的班？（手動指定的日子會保留）' + (notYet.length ? '\n\n注意：' + notYet.map(function (p) { return p.name; }).join('、') + ' 還沒登記好。' : '');
   if (!confirm(msg)) return;
-  api('api_autoSchedule', d.month, $('keepManual').checked).then(function (r) {
+  api('api_autoSchedule', d.month, true).then(function (r) {
     toast(r.gaps.length ? '排好了，但有 ' + r.gaps.length + ' 天大家都不能上班（紅框），請手動處理' : '排好了，確認沒問題後按「發布」');
     pageSchedule();
   });
@@ -657,7 +689,7 @@ function printSchedule() {
 /* ---------- 叫修回報 ---------- */
 function pageTickets() {
   var html = '<div class="sub"><button class="' + (APP.tkSub === 'tickets' ? 'on' : '') + '" onclick="APP.tkSub=\'tickets\';pageTickets()">叫修單</button>' +
-    '<button class="' + (APP.tkSub === 'log' ? 'on' : '') + '" onclick="APP.tkSub=\'log\';pageTickets()">維護工作紀錄</button></div><div id="tkBody"></div>';
+    '<button class="' + (APP.tkSub === 'log' ? 'on' : '') + '" onclick="APP.tkSub=\'log\';pageTickets()">工作紀錄</button></div><div id="tkBody"></div>';
   $('main').innerHTML = html;
   if (APP.tkSub === 'log') return drawWorklog();
   var f = APP.tkFilter === 'open' ? { open: true } : { month: APP.tkFilter };
@@ -665,20 +697,19 @@ function pageTickets() {
     APP.tickets = list;
     var months = [];
     for (var i = 0; i < 12; i++) months.push(shiftMonth(APP.init.today.slice(0, 7), -i));
-    $('tkBody').innerHTML = '<div class="card"><h2>叫修單<span class="sp"></span>' +
+    $('tkBody').innerHTML = '<div class="card"><h2>' +
       '<select onchange="APP.tkFilter=this.value;pageTickets()"><option value="open">未結案</option>' +
       months.map(function (m) { return '<option value="' + m + '"' + (APP.tkFilter === m ? ' selected' : '') + '>' + m + ' 全部</option>'; }).join('') + '</select>' +
-      '<button class="btn p" onclick="ticketForm()">＋ 新增叫修</button></h2>' + ticketList(list) + '</div>' + reportLinkCard();
+      '<span class="sp"></span><button class="btn p" onclick="ticketForm()">新增叫修</button></h2>' + ticketList(list) + '</div>' + reportLinkCard();
   });
 }
 function reportLinkCard() {
   var u = APP.init.reportUrl, hot = APP.init.settings['保固服務專線'];
   return '<div class="card"><h2>機關報修管道</h2>' +
-    '<div>電話／LINE：<b>' + esc(hot) + '</b></div>' +
-    (u ? '<div class="row" style="margin-top:6px"><span>免登入報修網址：</span><input id="repUrl" readonly value="' + esc(u) + '" style="flex:1;min-width:200px">' +
-      '<button class="btn sm" onclick="copyText(\'repUrl\')">複製</button><a class="btn sm" href="' + esc(u) + '" target="_blank">開啟</a></div>' +
-      '<div class="muted">把網址傳到機關的 LINE 群組，或印出來貼在櫃台。機關人員不用帳號就能報修、附照片，送出後所有人都會收到信。</div>'
-      : '<div class="muted">部署成網頁後就會顯示報修網址。</div>') + '</div>';
+    '<div class="kv"><span>電話／LINE</span><span>' + esc(hot) + '</span></div>' +
+    (u ? '<div class="kv"><span>免登入報修網址</span><span><input id="repUrl" readonly value="' + esc(u) + '" style="position:absolute;left:-9999px">' +
+      '<button class="btn sm" onclick="copyText(\'repUrl\')">複製連結</button> <a class="btn sm ghost" href="' + esc(u) + '" target="_blank">開啟</a></span></div>' +
+      '<div class="muted">傳到機關 LINE 群組，對方不用帳號就能報修。</div>' : '') + '</div>';
 }
 function copyText(id) {
   var e = $(id); e.select();
@@ -690,11 +721,13 @@ function ticketList(list) {
   APP.tickets = list;
   return list.map(function (t) {
     var due = '';
-    if (t.status === '待回覆') due = '回覆 ' + remain(t.replyDue);
-    else if (t.status === '處理中') due = '排除 ' + remain(t.fixDue);
-    return '<div class="list-item" onclick="ticketDetail(\'' + t.id + '\')"><div class="row">' + lvTag(t.level) + stTag(t.status) + (t.source === '報修頁' ? '<span class="tag p">機關報修</span>' : '') +
-      '<b>' + esc(t.equip) + '</b><span class="muted">' + esc(t.loc) + '</span><span class="sp" style="flex:1"></span>' + due + '</div>' +
-      '<div style="margin-top:3px">' + esc(t.symptom) + '</div><div class="muted">' + esc(t.id) + '・' + esc(t.at) + '・' + esc(t.reporter) + (t.unit ? '（' + esc(t.unit) + '）' : '') + '</div></div>';
+    if (t.status === '待回覆') due = remain(t.replyDue);
+    else if (t.status === '處理中') due = remain(t.fixDue);
+    else due = stTag(t.status);
+    return '<div class="tk" onclick="ticketDetail(\'' + t.id + '\')"><span class="bar l' + t.level + '"></span><div class="bd">' +
+      '<div class="t1"><b>' + esc(t.equip) + '</b><span class="muted">' + esc(t.loc) + '</span><span class="sp"></span>' + due + '</div>' +
+      '<div class="sym">' + esc(t.symptom) + '</div>' +
+      '<div class="muted">' + (t.status === '待回覆' || t.status === '處理中' ? esc(t.status) + '・' : '') + esc(t.at.slice(5)) + '・' + esc(t.reporter) + (t.unit ? '（' + esc(t.unit) + '）' : '') + '</div></div></div>';
   }).join('');
 }
 function ticketForm() {
@@ -810,16 +843,15 @@ function drawWorklog() {
   var m = APP.logMonth || APP.init.today.slice(0, 7);
   api('api_listWorklog', m).then(function (list) {
     APP.logs = list;
-    $('tkBody').innerHTML = '<div class="card"><h2>維護工作紀錄（附表三）' +
-      '<button class="btn sm" onclick="APP.logMonth=shiftMonth(\'' + m + '\',-1);drawWorklog()">‹</button><span>' + m + '</span>' +
-      '<button class="btn sm" onclick="APP.logMonth=shiftMonth(\'' + m + '\',1);drawWorklog()">›</button><span class="sp"></span>' +
-      '<button class="btn sm" onclick="printLog(\'' + m + '\')">列印</button><button class="btn p" onclick="logForm()">＋ 新增紀錄</button></h2>' +
-      '<div class="muted" style="margin-bottom:6px">叫修受理／排除、巡檢送出會自動記錄；更新、協助、交辦請手動新增。</div>' +
-      (list.length ? '<div class="tw"><table class="t"><tr><th>日期</th><th>時間</th><th>類別</th><th>內容摘要</th><th>處理結果</th><th>處理人</th><th></th></tr>' +
+    $('tkBody').innerHTML = '<div class="card"><h2>' +
+      '<button class="btn sm ghost" onclick="APP.logMonth=shiftMonth(\'' + m + '\',-1);drawWorklog()">‹</button><span>' + m + '</span>' +
+      '<button class="btn sm ghost" onclick="APP.logMonth=shiftMonth(\'' + m + '\',1);drawWorklog()">›</button><span class="sp"></span>' +
+      '<button class="btn sm ghost" onclick="printLog(\'' + m + '\')">列印</button><button class="btn p" onclick="logForm()">新增紀錄</button></h2>' +
+      (list.length ? '<div class="tw"><table class="t"><tr><th>日期</th><th>類別</th><th>內容摘要</th><th>處理結果</th><th>處理人</th><th></th></tr>' +
         list.map(function (l) {
           var mine = isAdmin() || l.by === APP.init.me.name;
-          return '<tr><td>' + md(l.date) + '</td><td>' + esc(l.time) + '</td><td><span class="tag">' + esc(l.cat) + '</span></td><td>' + esc(l.summary) + '</td><td>' + esc(l.result) + '</td><td>' + esc(l.by) + '</td>' +
-            '<td>' + (mine ? '<button class="btn sm bad" onclick="delLog(\'' + l.id + '\')">刪</button>' : '') + '</td></tr>';
+          return '<tr><td style="white-space:nowrap">' + md(l.date) + ' <span class="muted">' + esc(l.time) + '</span></td><td>' + esc(l.cat) + '</td><td>' + esc(l.summary) + '</td><td>' + esc(l.result) + '</td><td>' + esc(l.by) + '</td>' +
+            '<td>' + (mine ? '<button class="btn sm ghost" onclick="delLog(\'' + l.id + '\')">刪除</button>' : '') + '</td></tr>';
         }).join('') + '</table></div>' : '<div class="empty">本月沒有紀錄</div>') + '</div>';
   });
 }
@@ -850,23 +882,23 @@ function pageInsp() {
 }
 function drawInsp() {
   var r = APP.insp;
-  var html = '<div class="card"><div class="row"><label class="muted">巡檢日期</label><input type="date" id="inDate" value="' + r.date + '" max="' + APP.init.today + '" onchange="APP.inspDate=this.value;pageInsp()">' +
-    (r.date !== APP.init.today ? '<span class="tag warn">補登過去日期</span>' : '') + '</div></div>';
+  var html = '<div class="row" style="margin-bottom:14px"><input type="date" id="inDate" value="' + r.date + '" max="' + APP.init.today + '" onchange="APP.inspDate=this.value;pageInsp()">' +
+    (r.date !== APP.init.today ? '<span class="tag warn">補登過去日期</span>' : '') + '</div>';
   APP.init.freqs.forEach(function (f) {
     var items = r.items.filter(function (i) { return i.freq === f; });
     if (!items.length) return;
     var st = r.status[f], last = r.last[f];
     var editing = !st.done || APP.inspEdit === f;
-    html += '<div class="card"><h2>' + f + '巡檢<span class="muted">' + esc(st.label) + '</span>' +
-      (st.done ? '<span class="tag ' + (st.abnormal ? 'bad' : 'ok') + '">' + (st.abnormal ? '完成・異常 ' + st.abnormal : '已完成') + '</span><span class="muted">' + esc(st.by) + ' ' + esc(st.at) + '</span>' : '<span class="tag warn">未完成</span>') +
-      '<span class="sp"></span>' + (st.done && !editing ? '<button class="btn sm" onclick="APP.inspEdit=\'' + f + '\';drawInsp()">重新填寫</button><button class="btn sm" onclick="printInspNow(\'' + f + '\')">列印</button>' : '') +
-      (editing ? '<button class="btn sm" onclick="allOk(\'' + f + '\')">全部正常</button>' : '') + '</h2>';
+    html += '<div class="card"><h2>' + f + '巡檢<span class="muted" style="font-weight:normal">' + esc(st.label) + '</span>' +
+      (st.done ? '<span class="tag ' + (st.abnormal ? 'bad' : 'ok') + '">' + (st.abnormal ? '異常 ' + st.abnormal : '✓ 完成') + '</span>' : '') +
+      '<span class="sp"></span>' + (st.done && !editing ? '<span class="muted" style="font-weight:normal">' + esc(st.by) + ' ' + esc(st.at.slice(5)) + '</span><button class="btn sm ghost" onclick="APP.inspEdit=\'' + f + '\';drawInsp()">重填</button><button class="btn sm ghost" onclick="printInspNow(\'' + f + '\')">列印</button>' : '') +
+      (editing ? '<button class="btn sm ghost" onclick="allOk(\'' + f + '\')">全部正常</button>' : '') + '</h2>';
     if (f === '保固期滿前') html += '<div class="muted">保固期滿日：' + esc(r.warrantyEnd || '（未設定，請主管到「管理 → 設定」填寫）') + '</div>';
     items.forEach(function (it) {
       var prev = last.filter(function (x) { return x.itemId === it.id; })[0];
-      if (!editing) {
-        html += '<div class="chk"><div><b>' + esc(it.area) + '</b><div class="muted">' + esc(it.item) + '</div>' + (prev && prev.note ? '<div>說明：' + esc(prev.note) + '</div>' : '') + '</div>' +
-          '<div>' + (prev ? '<span class="tag ' + (prev.result === '異常' ? 'bad' : 'ok') + '">' + esc(prev.result) + '</span>' : '') + '</div></div>';
+      if (!editing) { // 完成後只列出異常項目
+        if (prev && prev.result === '異常') html += '<div class="chk"><div><b>' + esc(it.area) + '</b><div class="muted">' + esc(it.item) + '</div>' + (prev.note ? '<div>說明：' + esc(prev.note) + '</div>' : '') + '</div>' +
+          '<div><span class="tag bad">異常</span></div></div>';
         return;
       }
       var dv = APP.inspDraft[it.id] || (APP.inspDraft[it.id] = { id: it.id, result: '', note: '', ticket: true, level: '2' });
@@ -879,9 +911,9 @@ function drawInsp() {
     });
     if (editing) {
       var conf = last.length ? last[0].confirmBy : '';
-      html += '<div class="row" style="margin-top:10px"><label class="muted">機關確認人（選填）</label><input id="conf_' + f + '" value="' + esc(conf) + '">' +
-        '<span class="sp" style="flex:1"></span>' + (APP.inspEdit === f ? '<button class="btn" onclick="APP.inspEdit=null;drawInsp()">取消</button>' : '') +
-        '<button class="btn p" onclick="submitInsp(\'' + f + '\')">送出' + f + '巡檢</button></div>';
+      html += '<div class="row" style="margin-top:12px"><input id="conf_' + f + '" value="' + esc(conf) + '" placeholder="機關確認人（選填）" style="flex:1;min-width:150px">' +
+        (APP.inspEdit === f ? '<button class="btn" onclick="APP.inspEdit=null;drawInsp()">取消</button>' : '') +
+        '<button class="btn p" onclick="submitInsp(\'' + f + '\')">送出</button></div>';
     }
     html += '</div>';
   });
@@ -965,14 +997,13 @@ function drawSop() {
   });
   var unread = list.filter(function (s) { return s.must && !s.readAt; }).length;
   renderNav(Object.assign({}, APP.badges, { sop: unread || '' }));
-  var html = '<div class="card"><div class="row"><input id="sopQ" placeholder="搜尋關鍵字（例：發票、閘門、退票）" style="flex:1;min-width:200px" value="' + esc(APP.sopQ) + '" oninput="APP.sopQ=this.value;clearTimeout(APP._sq);APP._sq=setTimeout(function(){drawSop();var e=$(\'sopQ\');e.focus();e.setSelectionRange(e.value.length,e.value.length);},250)">' +
-    (isAdmin() ? '<button class="btn p" onclick="sopForm()">＋ 新增文件</button>' : '') + '</div>' +
-    '<div class="sub" style="margin:10px 0 0">' + cats.map(function (c) { return '<button class="' + (APP.sopCat === c ? 'on' : '') + '" onclick="APP.sopCat=\'' + esc(c) + '\';drawSop()">' + esc(c) + '</button>'; }).join('') + '</div></div>';
+  var html = '<div class="row" style="margin-bottom:12px"><input id="sopQ" placeholder="搜尋" style="flex:1;min-width:180px" value="' + esc(APP.sopQ) + '" oninput="APP.sopQ=this.value;clearTimeout(APP._sq);APP._sq=setTimeout(function(){drawSop();var e=$(\'sopQ\');e.focus();e.setSelectionRange(e.value.length,e.value.length);},250)">' +
+    '<select onchange="APP.sopCat=this.value;drawSop()">' + cats.map(function (c) { return '<option' + (APP.sopCat === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
+    (isAdmin() ? '<button class="btn p" onclick="sopForm()">新增</button>' : '') + '</div>';
   html += '<div class="card">' + (shown.length ? shown.map(function (s) {
     var rd = isAdmin() && s.readers ? s.readers.filter(function (x) { return x.at; }).length + '/' + s.readers.length + ' 已讀' : '';
-    return '<div class="list-item" onclick="sopDetail(\'' + s.id + '\')"><div class="row"><span class="tag">' + esc(s.cat) + '</span><b>' + esc(s.title) + '</b>' +
-      (s.must ? (s.readAt ? '<span class="tag ok">已讀</span>' : '<span class="tag bad">必讀・未讀</span>') : '') + (s.link ? '<span class="tag p">附文件</span>' : '') +
-      '<span class="muted" style="margin-left:auto">第 ' + esc(s.ver) + ' 版・' + esc(s.updated) + (rd ? '・' + rd : '') + '</span></div></div>';
+    return '<div class="todo" onclick="sopDetail(\'' + s.id + '\')"><span class="tx">' + esc(s.title) + '<div class="muted">' + esc(s.cat) + (rd ? '・' + rd : '') + '</div></span>' +
+      (s.must && !s.readAt ? '<span class="tag bad">未讀</span>' : '') + '<span class="go">›</span></div>';
   }).join('') : '<div class="empty">找不到文件</div>') + '</div>';
   $('main').innerHTML = html;
 }
@@ -1032,14 +1063,13 @@ function pageAdmin() {
 var ROLE_DESC = { '管理員': '全部功能，含帳號管理', '主管': '排班、發布、SOP 編輯、月報、設定（不能管帳號）', '駐點': '登記不能上班日、巡檢、叫修、讀 SOP' };
 function adPeople() {
   var ps = APP.init.people, owner = APP.init.me.isOwner;
-  $('adBody').innerHTML = '<div class="card"><h2>帳號與權限<span class="sp"></span>' + (owner ? '<button class="btn p" onclick="personForm()">＋ 新增帳號</button>' : '') + '</h2>' +
-    '<div class="muted" style="margin-bottom:6px">' + APP.init.roles.map(function (r) { return '<b>' + r + '</b>：' + ROLE_DESC[r]; }).join('　') + '。勾「可排班」的人才會被排進班表（主管也可以）。' +
-    (owner ? '' : '<br>帳號只有「管理員」可以新增或修改。') + '</div>' +
-    '<div class="tw"><table class="t"><tr><th>姓名</th><th>帳號</th><th>Email</th><th>角色</th><th>排班</th><th>狀態</th><th>最後登入</th><th></th></tr>' +
+  $('adBody').innerHTML = '<div class="card"><h2>帳號<span class="sp"></span>' + (owner ? '<button class="btn p" onclick="personForm()">新增帳號</button>' : '') + '</h2>' +
+    (owner ? '' : '<div class="muted" style="margin-bottom:6px">只有「管理員」可以新增或修改帳號。</div>') +
+    '<div class="tw"><table class="t"><tr><th>姓名</th><th>帳號</th><th>角色</th><th>排班</th><th>最後登入</th><th></th></tr>' +
     ps.map(function (p, i) {
-      return '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.account) + '</td><td>' + esc(p.email) + '</td><td>' + esc(p.role) + '</td><td>' + (p.sched ? '✔' : '') + '</td>' +
-        '<td>' + (p.active ? '<span class="tag ok">啟用</span>' : '<span class="tag">停用</span>') + '</td><td class="muted">' + esc(p.lastLogin || '') + '</td>' +
-        '<td>' + (owner ? '<button class="btn sm" onclick="personForm(' + i + ')">編輯</button>' : '') + '</td></tr>';
+      return '<tr' + (p.active ? '' : ' style="opacity:.5"') + '><td>' + esc(p.name) + (p.active ? '' : ' <span class="tag">停用</span>') + '<div class="muted">' + esc(p.email) + '</div></td><td>' + esc(p.account) + '</td><td>' + esc(p.role) + '</td><td>' + (p.sched ? '✓' : '') + '</td>' +
+        '<td class="muted">' + esc(p.lastLogin || '') + '</td>' +
+        '<td>' + (owner ? '<button class="btn sm ghost" onclick="personForm(' + i + ')">編輯</button>' : '') + '</td></tr>';
     }).join('') + '</table></div></div>';
 }
 function personForm(i) {
@@ -1089,12 +1119,11 @@ function saveSettings() {
 function adItems() {
   api('api_listInspItems').then(function (items) {
     APP.items = items;
-    $('adBody').innerHTML = '<div class="card"><h2>巡檢項目<span class="sp"></span><button class="btn p" onclick="itemForm()">＋ 新增項目</button></h2>' +
-      '<div class="muted" style="margin-bottom:6px">預設依「系統保固與維護計畫書」附表二與陸、預防性維護建立。停用的項目不會出現在巡檢表。</div>' +
-      '<div class="tw"><table class="t"><tr><th>頻率</th><th>排序</th><th>區域</th><th>檢查項目</th><th>狀態</th><th></th></tr>' +
+    $('adBody').innerHTML = '<div class="card"><h2>巡檢項目<span class="sp"></span><button class="btn p" onclick="itemForm()">新增項目</button></h2>' +
+      '<div class="tw"><table class="t"><tr><th>頻率</th><th>區域</th><th>檢查項目</th><th></th></tr>' +
       items.map(function (it, i) {
-        return '<tr><td>' + esc(it.freq) + '</td><td>' + it.order + '</td><td>' + esc(it.area) + '</td><td>' + esc(it.item) + '</td><td>' + (it.active ? '<span class="tag ok">啟用</span>' : '<span class="tag">停用</span>') + '</td>' +
-          '<td><button class="btn sm" onclick="itemForm(' + i + ')">編輯</button></td></tr>';
+        return '<tr' + (it.active ? '' : ' style="opacity:.5"') + '><td style="white-space:nowrap">' + esc(it.freq) + '</td><td>' + esc(it.area) + '</td><td>' + esc(it.item) + (it.active ? '' : ' <span class="tag">停用</span>') + '</td>' +
+          '<td><button class="btn sm ghost" onclick="itemForm(' + i + ')">編輯</button></td></tr>';
       }).join('') + '</table></div></div>';
   });
 }
