@@ -149,8 +149,13 @@
   .modal .foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap; }
   #toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--text); color: #fff; padding: 10px 18px; border-radius: 10px; display: none; z-index: 30; max-width: 90vw; font-size: 14px; }
   #toast.bad { background: var(--bad); }
-  #loading { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--primary); display: none; z-index: 40; animation: ld 1s infinite; }
-  @keyframes ld { 0% { opacity: .3 } 50% { opacity: 1 } 100% { opacity: .3 } }
+  #loading { position: fixed; top: 0; left: 0; right: 0; height: 3px; display: none; z-index: 40; overflow: hidden; background: var(--primary-weak); }
+  #loading::before { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; background: var(--primary); animation: ld 1s ease-in-out infinite; }
+  @keyframes ld { 0% { left: -40% } 100% { left: 100% } }
+  .spin { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 70px 0; color: var(--muted); font-size: 14px; }
+  .spin::before { content: ''; width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--primary); border-radius: 50%; animation: sp .8s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg) } }
+  .url { display: block; margin: 6px 0 10px; padding: 10px 12px; background: var(--bg); border-radius: 10px; font-size: 14px; word-break: break-all; color: var(--text); text-decoration: none; }
   .sub { display: inline-flex; background: #e9ecf0; border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 14px; flex-wrap: wrap; }
   .sub button { border: 0; background: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; color: #5b6573; }
   .sub button.on { background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
@@ -373,6 +378,7 @@ function go(p) {
   if (!PAGES.some(function (x) { return x[0] === p; }) || (p === 'admin' && !isAdmin())) p = 'home';
   APP.page = p; renderNav();
   try { history.replaceState(null, '', '#' + p); } catch (e) { }
+  $('main').innerHTML = '<div class="spin">載入中…</div>'; window.scrollTo(0, 0);
   ({ home: pageHome, punch: pagePunch, schedule: pageSchedule, tickets: pageTickets, insp: pageInsp, sop: pageSop, admin: pageAdmin })[p]();
 }
 
@@ -405,7 +411,8 @@ function pageHome() {
 /* ---------- 打卡 ---------- */
 function punchCard(p, today) {
   var m = (p && p.mine) || {}, hrs = (p && p.hours) || { start: '08:00', end: '17:30' };
-  var html = '<div class="card"><h2>打卡<span class="sp"></span><span class="muted" style="font-weight:normal">' + esc(hrs.start) + '－' + esc(hrs.end) + '</span></h2>' +
+  APP.punchMine = m;
+  var html = '<div class="card"><h2>打卡<span class="muted" style="font-weight:normal">' + esc(hrs.start) + '－' + esc(hrs.end) + '</span><span class="sp"></span><button class="btn sm ghost" onclick="punchFixForm()">補打卡</button></h2>' +
     '<div class="punch"><button class="in' + (m.in ? ' done' : '') + '" onclick="punchForm(\'上班\')">上班<small>' + (m.in ? '✓ ' + esc(m.in) : '尚未打卡') + '</small></button>' +
     '<button class="out' + (m.out ? ' done' : '') + '" onclick="punchForm(\'下班\')">下班<small>' + (m.out ? '✓ ' + esc(m.out) : '尚未打卡') + '</small></button></div>' +
     (m.note ? '<div class="muted" style="margin-top:8px">' + esc(m.note) + '</div>' : '');
@@ -460,11 +467,11 @@ function personOptions(sel, withAll) {
   }).join('');
 }
 function pagePunch() {
-  APP.pFrom = APP.pFrom || monthStart(); APP.pTo = APP.pTo || APP.init.today; APP.pWho = APP.pWho || '';
+  APP.pFrom = APP.pFrom || APP.init.today; APP.pTo = APP.pTo || APP.init.today; APP.pWho = APP.pWho || '';
   api('api_home').then(function (h) {
     var admin = isAdmin();
     var html = punchCard(h.punch, h.today) +
-      '<div class="card"><h2>打卡紀錄<span class="sp"></span>' + (admin ? '<button class="btn sm ghost" onclick="punchFixForm()">補登</button>' : '') + '</h2>' +
+      '<div class="card"><h2>打卡紀錄</h2>' +
       '<div class="filters"><input type="date" id="pfF" value="' + APP.pFrom + '" onchange="pfGo()"><span class="muted">至</span><input type="date" id="pfT" value="' + APP.pTo + '" onchange="pfGo()">' +
       (admin ? '<select id="pfW" onchange="pfGo()">' + personOptions(APP.pWho, true) + '</select>' : '') + '</div>' +
       '<div id="pList" style="margin-top:8px"></div></div>';
@@ -488,12 +495,17 @@ function drawPunchList() {
     var img = function (u, full) { return u ? '<a href="' + esc(full || u) + '" target="_blank"><img class="thumb" src="' + esc(u) + '" alt=""></a>' : ''; };
     $('pList').innerHTML = r.summary.length ? '<div class="tw"><table class="t"><tr><th>日期</th><th>人員</th><th>上班</th><th>下班</th><th>備註</th></tr>' +
       r.summary.slice().reverse().map(function (x, i) {
-        return '<tr' + (isAdmin() ? ' style="cursor:pointer" onclick="punchDetail(\'' + x.date + '\',\'' + esc(x.email) + '\')"' : '') + '><td>' + md(x.date) + '（' + WD[wdOf(x.date)] + '）</td><td>' + esc(x.name) + '</td>' +
-          '<td>' + esc(x.in || '—') + img(x.inThumb, x.inPhoto) + '</td><td>' + esc(x.out || '—') + img(x.outThumb, x.outPhoto) + '</td>' +
+        return '<tr' + (isAdmin() ? ' style="cursor:pointer" onclick="punchDetail(\'' + x.date + '\',\'' + esc(x.email) + '\')"' : '') + '><td style="white-space:nowrap">' + md(x.date) + '<div class="muted">' + WD[wdOf(x.date)] + '</div></td><td style="white-space:nowrap">' + esc(x.name) + '</td>' +
+          '<td>' + esc(x.in || '—') + img(x.inThumb, x.inPhoto) + fixMark(x.inFixed, x.inAt, x.date) + '</td><td>' + esc(x.out || '—') + img(x.outThumb, x.outPhoto) + fixMark(x.outFixed, x.outAt, x.date) + '</td>' +
           '<td class="muted"' + (/遲到|早退|未打/.test(x.note) ? ' style="color:var(--warn)"' : '') + '>' + esc(x.note) + '</td></tr>';
       }).join('') + '</table></div>'
       : '<div class="empty">這段期間沒有打卡紀錄</div>';
   });
+}
+function fixMark(fixed, at, date) { // 補打：顯示實際操作時間
+  if (!fixed) return '';
+  at = String(at || '');
+  return '<div style="color:var(--warn);font-size:12px;white-space:nowrap">補打 ' + esc(at.slice(0, 10) === date ? at.slice(11, 16) : md(at.slice(0, 10)) + ' ' + at.slice(11, 16)) + '</div>';
 }
 function punchDetail(date, email) {
   var recs = APP.att.records.filter(function (x) { return x.date === date && x.email === email; });
@@ -502,21 +514,25 @@ function punchDetail(date, email) {
       return '<div class="list-item" style="cursor:default"><div class="row"><span class="tag ' + (x.type === '上班' ? 'ok' : '') + '">' + esc(x.type) + '</span><b>' + esc(x.time) + '</b>' + esc(x.name) +
         (x.fixed ? '<span class="tag warn">補登（' + esc(x.by) + '）</span>' : '') + (x.loc ? '<a class="muted" target="_blank" href="https://maps.google.com/?q=' + esc(x.loc) + '">📍位置</a>' : '') +
         '<span style="margin-left:auto"></span><button class="btn sm" onclick="punchFixForm(\'' + x.id + '\')">修改</button><button class="btn sm bad" onclick="punchDel(\'' + x.id + '\')">刪除</button></div>' +
+        '<div class="muted">紀錄時間 ' + esc(x.at) + '（' + esc(x.by) + '）</div>' +
         (x.note ? '<div class="muted">' + esc(x.note) + '</div>' : '') + (x.photo ? '<a href="' + esc(x.photo) + '" target="_blank"><img class="thumb" style="width:90px;height:90px;margin:6px 0 0" src="' + esc(x.thumb || x.photo) + '"></a>' : '') + '</div>';
     }).join('') + '<div class="foot"><button class="btn" onclick="closeModal()">關閉</button></div>');
 }
 function punchFixForm(id) {
-  var x = id ? APP.att.records.filter(function (r) { return r.id === id; })[0] : { date: APP.init.today, email: APP.pWho, type: '上班', time: (APP.init.settings['上班時間'] || '08:00').slice(0, 5), note: '' };
-  modal('<h3>' + (id ? '修改打卡（改為補登）' : '補登打卡') + '<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<label class="f">人員</label><select id="fxW" class="full">' + personOptions(x.email, false) + '</select>' +
-    '<div class="row"><div><label class="f">日期</label><input type="date" id="fxD" value="' + esc(x.date) + '"></div><div><label class="f">時間</label><input type="time" id="fxT" value="' + esc(x.time) + '"></div>' +
+  var mine = APP.punchMine || {}, h = (APP.init.settings['上班時間'] || '08:00～17:30').match(/\d{1,2}:\d{2}/g) || ['08:00', '17:30'];
+  var ty = mine.in && !mine.out ? '下班' : '上班', pad = function (t) { return t.length < 5 ? '0' + t : t; };
+  var x = id ? APP.att.records.filter(function (r) { return r.id === id; })[0] : { date: APP.init.today, email: isAdmin() ? APP.pWho : APP.init.me.email, type: ty, time: pad(ty === '上班' ? h[0] : h[1] || '17:30'), note: '' };
+  modal('<h3>' + (id ? '修改打卡' : '補打卡') + '<button class="x" onclick="closeModal()">×</button></h3>' +
+    '<div class="muted">系統會記錄你補打的時間（現在 ' + esc(nowStr().slice(5).replace('-', '/')) + '）。</div>' +
+    (isAdmin() ? '<label class="f">人員</label><select id="fxW" class="full">' + personOptions(x.email, false) + '</select>' : '') +
+    '<div class="row"><div><label class="f">日期</label><input type="date" id="fxD" value="' + esc(x.date) + '" max="' + APP.init.today + '"></div><div><label class="f">時間</label><input type="time" id="fxT" value="' + esc(x.time) + '"></div>' +
     '<div><label class="f">類型</label><select id="fxY"><option' + (x.type === '上班' ? ' selected' : '') + '>上班</option><option' + (x.type === '下班' ? ' selected' : '') + '>下班</option></select></div></div>' +
     '<label class="f">原因 *（會顯示在簽到表備註）</label><input id="fxN" class="full" value="' + esc(x.note) + '" placeholder="例：忘記打卡、手機沒電">' +
     '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="punchFixSave(\'' + (id || '') + '\')">儲存</button></div>');
 }
 function punchFixSave(id) {
-  api('api_punchFix', { id: id, email: $('fxW').value, date: val('fxD'), time: val('fxT'), type: $('fxY').value, note: val('fxN') })
-    .then(function () { closeModal(); toast('已儲存'); drawPunchList(); });
+  api('api_punchFix', { id: id, email: $('fxW') ? $('fxW').value : APP.init.me.email, date: val('fxD'), time: val('fxT'), type: $('fxY').value, note: val('fxN') })
+    .then(function () { closeModal(); toast('已儲存'); go(APP.page); });
 }
 function punchDel(id) { if (confirm('刪除這筆打卡紀錄？')) api('api_punchDelete', id).then(function () { closeModal(); toast('已刪除'); drawPunchList(); }); }
 function exportAttendance() {
@@ -689,7 +705,7 @@ function printSchedule() {
 /* ---------- 叫修回報 ---------- */
 function pageTickets() {
   var html = '<div class="sub"><button class="' + (APP.tkSub === 'tickets' ? 'on' : '') + '" onclick="APP.tkSub=\'tickets\';pageTickets()">叫修單</button>' +
-    '<button class="' + (APP.tkSub === 'log' ? 'on' : '') + '" onclick="APP.tkSub=\'log\';pageTickets()">工作紀錄</button></div><div id="tkBody"></div>';
+    '<button class="' + (APP.tkSub === 'log' ? 'on' : '') + '" onclick="APP.tkSub=\'log\';pageTickets()">工作紀錄</button></div><div id="tkBody"><div class="spin">載入中…</div></div>';
   $('main').innerHTML = html;
   if (APP.tkSub === 'log') return drawWorklog();
   var f = APP.tkFilter === 'open' ? { open: true } : { month: APP.tkFilter };
@@ -707,9 +723,9 @@ function reportLinkCard() {
   var u = APP.init.reportUrl, hot = APP.init.settings['保固服務專線'];
   return '<div class="card"><h2>機關報修管道</h2>' +
     '<div class="kv"><span>電話／LINE</span><span>' + esc(hot) + '</span></div>' +
-    (u ? '<div class="kv"><span>免登入報修網址</span><span><input id="repUrl" readonly value="' + esc(u) + '" style="position:absolute;left:-9999px">' +
-      '<button class="btn sm" onclick="copyText(\'repUrl\')">複製連結</button> <a class="btn sm ghost" href="' + esc(u) + '" target="_blank">開啟</a></span></div>' +
-      '<div class="muted">傳到機關 LINE 群組，對方不用帳號就能報修。</div>' : '') + '</div>';
+    (u ? '<div class="muted" style="margin-top:10px">免登入報修網址（傳到機關 LINE 群組，對方不用帳號就能報修）</div>' +
+      '<a class="url" href="' + esc(u) + '" target="_blank">' + esc(u) + '</a><input id="repUrl" readonly value="' + esc(u) + '" style="position:absolute;left:-9999px">' +
+      '<button class="btn sm" onclick="copyText(\'repUrl\')">複製連結</button>' : '') + '</div>';
 }
 function copyText(id) {
   var e = $(id); e.select();
@@ -876,7 +892,7 @@ function printLog(m) {
 /* ---------- 巡檢 ---------- */
 function pageInsp() {
   $('main').innerHTML = '<div class="sub"><button class="' + (APP.inspSub === 'fill' ? 'on' : '') + '" onclick="APP.inspSub=\'fill\';pageInsp()">填寫巡檢</button>' +
-    '<button class="' + (APP.inspSub === 'hist' ? 'on' : '') + '" onclick="APP.inspSub=\'hist\';pageInsp()">巡檢紀錄</button></div><div id="inBody"></div>';
+    '<button class="' + (APP.inspSub === 'hist' ? 'on' : '') + '" onclick="APP.inspSub=\'hist\';pageInsp()">巡檢紀錄</button></div><div id="inBody"><div class="spin">載入中…</div></div>';
   if (APP.inspSub === 'hist') return drawInspHist();
   api('api_getInspections', APP.inspDate).then(function (r) { APP.insp = r; APP.inspDraft = {}; drawInsp(); });
 }
@@ -1057,7 +1073,7 @@ function sopDel(id) { if (confirm('確定刪除這份文件？')) api('api_delet
 /* ---------- 管理（主管） ---------- */
 function pageAdmin() {
   var subs = [['people', '帳號'], ['settings', '設定'], ['items', '巡檢項目'], ['report', '月維護報告']];
-  $('main').innerHTML = '<div class="sub">' + subs.map(function (s) { return '<button class="' + (APP.adminSub === s[0] ? 'on' : '') + '" onclick="APP.adminSub=\'' + s[0] + '\';pageAdmin()">' + s[1] + '</button>'; }).join('') + '</div><div id="adBody"></div>';
+  $('main').innerHTML = '<div class="sub">' + subs.map(function (s) { return '<button class="' + (APP.adminSub === s[0] ? 'on' : '') + '" onclick="APP.adminSub=\'' + s[0] + '\';pageAdmin()">' + s[1] + '</button>'; }).join('') + '</div><div id="adBody"><div class="spin">載入中…</div></div>';
   ({ people: adPeople, settings: adSettings, items: adItems, report: adReport })[APP.adminSub]();
 }
 var ROLE_DESC = { '管理員': '全部功能，含帳號管理', '主管': '排班、發布、SOP 編輯、月報、設定（不能管帳號）', '駐點': '登記不能上班日、巡檢、叫修、讀 SOP' };

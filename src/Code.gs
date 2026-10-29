@@ -962,6 +962,12 @@ function punchRecords_(from, to, email) {
   }).sort(function (a, b) { return (a.date + a.time) < (b.date + b.time) ? -1 : 1; });
 }
 
+/** 補登的實際操作時間與操作人，例：10/4 09:00 小華 */
+function fixStamp_(r) {
+  var at = String(r.at || ''), m = at.match(/^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/);
+  return (m ? Number(m[1]) + '/' + Number(m[2]) + ' ' + m[3] + ' ' : '') + (r.by || '');
+}
+
 /** 每人每天一筆：最早的上班、最晚的下班；備註自動加遲到、早退、補登原因 */
 function punchSummary_(from, to, email) {
   var h = workHours_(), map = {}, out = [];
@@ -977,8 +983,13 @@ function punchSummary_(from, to, email) {
     if (g.out && g.out.time < h.end) notes.push('早退');
     if (!g.in) notes.push('未打上班卡');
     if (!g.out && g.date < today_()) notes.push('未打下班卡');
-    [g.in, g.out].forEach(function (r) { if (r && r.fixed) notes.push('補登' + r.type + (r.note ? '：' + r.note : '')); else if (r && r.note) notes.push(r.note); });
+    [g.in, g.out].forEach(function (r) {
+      if (r && r.fixed) notes.push('補登' + r.type + '（' + fixStamp_(r) + '）' + (r.note ? '：' + r.note : ''));
+      else if (r && r.note) notes.push(r.note);
+    });
     out.push({ date: g.date, email: g.email, name: g.name, in: g.in ? g.in.time : '', out: g.out ? g.out.time : '',
+      inFixed: !!(g.in && g.in.fixed), outFixed: !!(g.out && g.out.fixed),
+      inAt: g.in ? String(g.in.at || '') : '', outAt: g.out ? String(g.out.at || '') : '',
       inPhoto: g.in ? g.in.photo : '', inThumb: g.in ? g.in.thumb : '', outPhoto: g.out ? g.out.photo : '', outThumb: g.out ? g.out.thumb : '', note: notes.join('；') });
   });
   return out;
@@ -1012,14 +1023,24 @@ function api_attendance(tk, from, to, email) {
   return { from: from, to: to, email: email || '', summary: punchSummary_(from, to, email), records: punchRecords_(from, to, email), hours: workHours_() };
 }
 
+/** 補登：主管可替任何人補登、修改；駐點只能替自己補打（新增），不能補未來時間。建立時間＝實際操作時間 */
 function api_punchFix(tk, o) {
-  var me = requireAdmin_(tk);
+  var me = me_(tk);
   o = o || {};
+  if (!me.isAdmin) {
+    if (o.id) throw new Error('只有主管可以修改打卡紀錄');
+    o.email = me.email;
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date || '') || !/^\d{2}:\d{2}$/.test(o.time || '')) throw new Error('請填日期與時間');
   if (o.type !== '上班' && o.type !== '下班') throw new Error('請選上班或下班');
   var p = people_(true).filter(function (x) { return x.email === o.email; })[0];
   if (!p) throw new Error('請選人員');
   if (!o.note) throw new Error('補登請填原因（例：忘記打卡）');
+  if (!me.isAdmin) {
+    var n0 = now_();
+    if (o.date + ' ' + o.time > n0) throw new Error('不能補打未來的時間');
+    if ((parseDate_(n0.slice(0, 10)) - parseDate_(o.date)) / 86400000 > 31) throw new Error('只能補打 31 天內的打卡，更早的請找主管');
+  }
   return withLock_(function () {
     var rec = { '日期': o.date, 'Email': p.email, '姓名': p.name, '類型': o.type, '時間': o.time, '備註': String(o.note).slice(0, 100), '補登': 'Y', '建立者': me.name, '建立時間': now_() };
     if (o.id) {

@@ -45,10 +45,21 @@ const BLOB = 'https://abc.public.blob.vercel-storage.com/打卡照片/';
   // 10/3 小華忘記打下班 → 主管補登
   setNow('2026-10-03 07:58'); G.api_punch(TB, '上班', BLOB + 'in3.jpg', BLOB + 'in3_t.jpg', '', '');
   setNow('2026-10-04 09:00');
-  expectErr(() => G.api_punchFix(TB, { email: 'b@corp.com', date: '2026-10-03', time: '17:31', type: '下班', note: 'x' }), 'staff cannot fix');
+  expectErr(() => G.api_punchFix(TB, { id: 'X', email: 'b@corp.com', date: '2026-10-03', time: '17:31', type: '下班', note: 'x' }), 'staff cannot edit', /主管/);
+  expectErr(() => G.api_punchFix(TB, { date: '2026-10-04', time: '18:00', type: '下班', note: 'x' }), 'staff no future', /未來/);
+  expectErr(() => G.api_punchFix(TB, { date: '2026-08-01', time: '17:30', type: '下班', note: 'x' }), 'staff 31 days', /31/);
   expectErr(() => G.api_punchFix(TA, { email: 'b@corp.com', date: '2026-10-03', time: '17:31', type: '下班' }), 'fix needs reason', /原因/);
   G.api_punchFix(TA, { email: 'b@corp.com', date: '2026-10-03', time: '17:31', type: '下班', note: '忘記打卡' });
-  ok(G.api_attendance(TA, '2026-10-03', '2026-10-03', 'b@corp.com').summary[0].note === '補登下班：忘記打卡', 'fix note');
+  let s3 = G.api_attendance(TA, '2026-10-03', '2026-10-03', 'b@corp.com').summary[0];
+  ok(s3.note === '補登下班（10/4 09:00 管理員）：忘記打卡' && s3.outFixed && s3.outAt === '2026-10-04 09:00', 'fix note ' + s3.note);
+  // 駐點自己補打（email 一律換成自己）
+  setNow('2026-10-04 09:05');
+  G.api_punchFix(TB, { email: 'a@corp.com', date: '2026-10-04', time: '08:00', type: '上班', note: '手機沒電' });
+  let s4 = G.api_attendance(TA, '2026-10-04', '2026-10-04', 'b@corp.com').summary[0];
+  ok(s4 && s4.in === '08:00' && s4.note.indexOf('補登上班（10/4 09:05 小華）：手機沒電') >= 0, 'staff self fix ' + JSON.stringify(s4));
+  ok(!G.api_attendance(TA, '2026-10-04', '2026-10-04', 'a@corp.com').summary.length, 'staff fix not for others');
+  G.api_punchDelete(TA, G.api_attendance(TA, '2026-10-04', '2026-10-04', 'b@corp.com').records[0].id);
+  setNow('2026-10-04 09:00');
   // 駐點只看得到自己
   ok(G.api_attendance(TS, '2026-10-01', '2026-10-31', 'b@corp.com').summary.every(x => x.email === 'a@corp.com'), 'staff sees own only');
   ok(G.api_attendance(TA, '2026-10-01', '2026-10-31', '').summary.length === 3, 'admin sees all');
