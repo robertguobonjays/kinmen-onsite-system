@@ -2,7 +2,6 @@
 //  api_uploadPhoto(token, name, dataUrl)：登入者上傳叫修照片
 //  api_publicUpload(name, dataUrl)：機關報修頁上傳照片（有頻率限制）
 //  api_uploadFile(token, name, dataUrl)：主管上傳 SOP 附件
-const rt = require('../lib/runtime');
 const backend = require('../lib/backend');
 
 const MAX = 4 * 1024 * 1024; // Vercel 單次請求上限約 4.5MB
@@ -19,7 +18,7 @@ module.exports = async (req, res) => {
     let name, dataUrl, folder, imageOnly = true;
     if (fn === 'api_publicUpload') {
       [name, dataUrl] = args;
-      rt.rateLimit('pub_upload', 30);
+      backend.rateLimit('pub_upload', 30);
       folder = '叫修照片';
     } else if (fn === 'api_uploadPhoto') {
       [, name, dataUrl] = args;
