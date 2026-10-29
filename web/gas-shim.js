@@ -2,7 +2,7 @@
 // 把 google.script.run.xxx(...) 轉成呼叫 /api/call（檔案上傳走 /api/upload）
 (function () {
   window.__VERCEL__ = true;
-  var UPLOAD = { api_uploadPhoto: 1, api_publicUpload: 1, api_uploadFile: 1 };
+  var UPLOAD = { api_uploadPhoto: 1, api_publicUpload: 1, api_uploadFile: 1, api_uploadPunch: 1 };
   function runner(ok, fail) {
     return new Proxy({}, {
       get: function (_, fn) {

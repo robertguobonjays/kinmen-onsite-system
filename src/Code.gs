@@ -24,7 +24,8 @@ var SHEETS = {
   'SOP': ['ID', '分類', '標題', '內容', '文件連結', '版本', '必讀', '更新日', '更新人'],
   '已讀紀錄': ['SOPID', '版本', 'Email', '姓名', '時間'],
   '寄信佇列': ['ID', '建立時間', '收件者', '主旨', '內容', '狀態', '寄出時間', '錯誤'],
-  '工作佇列': ['ID', '建立時間', '類型', '參數', '申請人Email', '狀態', '完成時間', '結果']
+  '工作佇列': ['ID', '建立時間', '類型', '參數', '申請人Email', '狀態', '完成時間', '結果'],
+  '打卡紀錄': ['ID', '日期', 'Email', '姓名', '類型', '時間', '照片', '縮圖', '位置', '備註', '補登', '建立者', '建立時間']
 };
 
 var DEFAULT_SETTINGS = [
@@ -96,7 +97,14 @@ var HEAD_ = {};
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
 function sh_(name) {
-  var s = ss_().getSheetByName(name);
+  var ss = ss_(), s = ss.getSheetByName(name);
+  if (!s && SHEETS[name]) { // 新版本新增的工作表：第一次用到時自動建立
+    s = ss.insertSheet(name);
+    s.getRange(1, 1, 1, SHEETS[name].length).setValues([SHEETS[name]]).setFontWeight('bold').setBackground('#e8f0fe');
+    s.setFrozenRows(1);
+    s.getRange(1, 1, s.getMaxRows(), SHEETS[name].length).setNumberFormat('@');
+    delete HEAD_[name];
+  }
   if (!s) throw new Error('找不到工作表「' + name + '」，請先在試算表選單執行「駐點系統 → 初始化」');
   return s;
 }
@@ -468,7 +476,10 @@ function api_home(tk) {
     };
   }
 
-  return { today: t, todayDuty: duty(t), tomorrowDuty: duty(tm), myShifts: mine, insp: insp, tickets: tickets, leave: leave, plan: plan, unread: unread };
+  var dutyRow = shifts.filter(function (x) { return x['日期'] === t; })[0];
+  var punch = { mine: punchSummary_(t, t, me.email)[0] || null, hours: workHours_() };
+  if (me.isAdmin && dutyRow && dutyRow['Email']) punch.duty = { name: dutyRow['姓名'], rec: punchSummary_(t, t, dutyRow['Email'])[0] || null };
+  return { today: t, todayDuty: duty(t), tomorrowDuty: duty(tm), myShifts: mine, insp: insp, tickets: tickets, leave: leave, plan: plan, unread: unread, punch: punch };
 }
 
 /* ============================== 排班 ============================== */
@@ -885,6 +896,11 @@ function api_ticketAction(tk, id, action, data) {
   });
 }
 
+function api_uploadPunch(tk, name, dataUrl) {
+  me_(tk);
+  return 'https://drive.google.com/thumbnail?sz=w1280&id=' + savePhoto_(name, dataUrl);
+}
+
 function api_uploadPhoto(tk, name, dataUrl) {
   me_(tk);
   return savePhoto_(name, dataUrl);
@@ -927,6 +943,133 @@ function api_deleteWorklog(tk, id) {
     deleteRows_('工作紀錄', [r._row]);
     return true;
   });
+}
+
+/* ============================== 每日打卡 ============================== */
+
+function workHours_() {
+  var m = String(getSettings_()['上班時間'] || '').match(/(\d{1,2}):(\d{2})\D+(\d{1,2}):(\d{2})/);
+  var p = function (h, mm) { return (h.length < 2 ? '0' : '') + h + ':' + mm; };
+  return m ? { start: p(m[1], m[2]), end: p(m[3], m[4]) } : { start: '08:00', end: '17:30' };
+}
+
+function punchRecords_(from, to, email) {
+  return readTable_('打卡紀錄').filter(function (r) {
+    return r['日期'] >= from && r['日期'] <= to && (!email || r['Email'] === email);
+  }).map(function (r) {
+    return { id: r['ID'], date: r['日期'], email: r['Email'], name: r['姓名'], type: r['類型'], time: r['時間'], photo: r['照片'], thumb: r['縮圖'] || r['照片'],
+      loc: r['位置'], note: r['備註'], fixed: r['補登'] === 'Y', by: r['建立者'], at: r['建立時間'] };
+  }).sort(function (a, b) { return (a.date + a.time) < (b.date + b.time) ? -1 : 1; });
+}
+
+/** 每人每天一筆：最早的上班、最晚的下班；備註自動加遲到、早退、補登原因 */
+function punchSummary_(from, to, email) {
+  var h = workHours_(), map = {}, out = [];
+  punchRecords_(from, to, email).forEach(function (r) {
+    var k = r.date + '|' + r.email;
+    var g = map[k] || (map[k] = { date: r.date, email: r.email, name: r.name, in: null, out: null });
+    if (r.type === '上班' && (!g.in || r.time < g.in.time)) g.in = r;
+    if (r.type === '下班' && (!g.out || r.time > g.out.time)) g.out = r;
+  });
+  Object.keys(map).sort().forEach(function (k) {
+    var g = map[k], notes = [];
+    if (g.in && g.in.time > h.start) notes.push('遲到');
+    if (g.out && g.out.time < h.end) notes.push('早退');
+    if (!g.in) notes.push('未打上班卡');
+    if (!g.out && g.date < today_()) notes.push('未打下班卡');
+    [g.in, g.out].forEach(function (r) { if (r && r.fixed) notes.push('補登' + r.type + (r.note ? '：' + r.note : '')); else if (r && r.note) notes.push(r.note); });
+    out.push({ date: g.date, email: g.email, name: g.name, in: g.in ? g.in.time : '', out: g.out ? g.out.time : '',
+      inPhoto: g.in ? g.in.photo : '', inThumb: g.in ? g.in.thumb : '', outPhoto: g.out ? g.out.photo : '', outThumb: g.out ? g.out.thumb : '', note: notes.join('；') });
+  });
+  return out;
+}
+
+function api_punch(tk, type, photo, thumb, loc, note) {
+  var me = me_(tk);
+  if (type !== '上班' && type !== '下班') throw new Error('打卡類型錯誤');
+  if (!/^https:\/\/\S+$/.test(String(photo || ''))) throw new Error('打卡一定要附照片');
+  return withLock_(function () {
+    var n = now_();
+    appendObj_('打卡紀錄', {
+      'ID': uid_('P'), '日期': n.slice(0, 10), 'Email': me.email, '姓名': me.name, '類型': type, '時間': n.slice(11),
+      '照片': photo, '縮圖': /^https:\/\/\S+$/.test(String(thumb || '')) ? thumb : photo,
+      '位置': String(loc || '').slice(0, 60), '備註': String(note || '').slice(0, 100), '補登': '', '建立者': me.name, '建立時間': n
+    });
+    return { time: n.slice(11), today: punchSummary_(n.slice(0, 10), n.slice(0, 10), me.email)[0] };
+  });
+}
+
+function checkRange_(from, to, maxDays) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(from)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(to)) || from > to) throw new Error('日期區間錯誤');
+  if ((parseDate_(to) - parseDate_(from)) / 86400000 > maxDays) throw new Error('區間最多 ' + (maxDays + 1) + ' 天');
+}
+
+/** 打卡紀錄查詢：駐點只能看自己的；主管可篩選人員 */
+function api_attendance(tk, from, to, email) {
+  var me = me_(tk);
+  checkRange_(from, to, 92);
+  if (!me.isAdmin) email = me.email;
+  return { from: from, to: to, email: email || '', summary: punchSummary_(from, to, email), records: punchRecords_(from, to, email), hours: workHours_() };
+}
+
+function api_punchFix(tk, o) {
+  var me = requireAdmin_(tk);
+  o = o || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date || '') || !/^\d{2}:\d{2}$/.test(o.time || '')) throw new Error('請填日期與時間');
+  if (o.type !== '上班' && o.type !== '下班') throw new Error('請選上班或下班');
+  var p = people_(true).filter(function (x) { return x.email === o.email; })[0];
+  if (!p) throw new Error('請選人員');
+  if (!o.note) throw new Error('補登請填原因（例：忘記打卡）');
+  return withLock_(function () {
+    var rec = { '日期': o.date, 'Email': p.email, '姓名': p.name, '類型': o.type, '時間': o.time, '備註': String(o.note).slice(0, 100), '補登': 'Y', '建立者': me.name, '建立時間': now_() };
+    if (o.id) {
+      var r = readTable_('打卡紀錄').filter(function (x) { return x['ID'] === o.id; })[0];
+      if (!r) throw new Error('找不到紀錄');
+      updateObj_('打卡紀錄', r._row, rec);
+    } else { rec['ID'] = uid_('P'); appendObj_('打卡紀錄', rec); }
+    return true;
+  });
+}
+
+function api_punchDelete(tk, id) {
+  requireAdmin_(tk);
+  return withLock_(function () {
+    var r = readTable_('打卡紀錄').filter(function (x) { return x['ID'] === id; })[0];
+    if (r) deleteRows_('打卡紀錄', [r._row]);
+    return true;
+  });
+}
+
+/** 出勤簽到表資料（Vercel 產生 Word 用）：每天一列；指定人員時，沒打卡的日子依已發布班表標「休」或「未打卡」 */
+function api_attendanceReport(tk, from, to, email) {
+  requireAdmin_(tk);
+  checkRange_(from, to, 62);
+  var person = email ? people_(true).filter(function (p) { return p.email === email; })[0] : null;
+  if (email && !person) throw new Error('找不到人員');
+  var sum = punchSummary_(from, to, email || '');
+  var shifts = {}, months = monthStatusMap_();
+  readTable_('班表').forEach(function (x) { if (x['日期'] >= from && x['日期'] <= to && months[x['日期'].slice(0, 7)] === '已發布') shifts[x['日期']] = x['Email']; });
+  var rows = [], d = from, t = today_();
+  while (d <= to) {
+    var day = sum.filter(function (x) { return x.date === d; });
+    if (day.length) day.forEach(function (x) { rows.push({ date: d, wd: WD[weekday_(d)], name: x.name, in: x.in, out: x.out, note: x.note, thumb: x.inThumb || x.outThumb }); });
+    else {
+      var duty = shifts[d], note = '';
+      if (person) note = duty === person.email ? (d < t ? '未打卡' : '') : (duty ? '休' : '');
+      else if (duty && d < t) note = '未打卡（' + nameOf_(duty) + '）';
+      rows.push({ date: d, wd: WD[weekday_(d)], name: '', in: '', out: '', note: note, thumb: '' });
+    }
+    d = addDays_(d, 1);
+  }
+  rows.forEach(function (r) { r.date = md_(r.date); });
+  var roc = function (x) { return Number(x.slice(0, 4)) - 1911; };
+  var mm = function (x) { return Number(x.slice(5, 7)); }, dd = function (x) { return Number(x.slice(8, 10)); };
+  var wholeMonth = from.slice(0, 7) === to.slice(0, 7) && dd(from) === 1 && to === monthDays_(to.slice(0, 7)).pop();
+  var title = '出勤簽到表' + roc(from) + '年' + (wholeMonth ? mm(from) + '月份'
+    : mm(from) + '月' + dd(from) + '日至' + (roc(to) !== roc(from) ? roc(to) + '年' : '') + mm(to) + '月' + dd(to) + '日');
+  if (person) title += '（' + person.name + '）';
+  var mmdd = function (x) { return x.slice(5, 7) + x.slice(8, 10); };
+  return { title: title, filename: '金門駐點人員出勤簽到表' + mmdd(from) + '-' + mmdd(to), rows: rows };
 }
 
 /* ============================== 定期巡檢（附表二、陸） ============================== */
@@ -1367,6 +1510,18 @@ function hourlyJob() {
     if (s['保固期滿日'] && !st2['保固期滿前'].done && day === 1) {
       var left2 = Math.round((parseDate_(s['保固期滿日']) - parseDate_(t)) / 86400000);
       if (left2 >= 0 && left2 <= 90) mail_(adminsE, '保固期滿前檢查提醒（剩 ' + left2 + ' 天）', '<p>保固期滿日 ' + s['保固期滿日'] + '，行李過磅設備須再經經濟部標準檢驗局檢定合格並附證書 3 份，檢定前要先通知機關。</p>');
+    }
+  }
+
+  // 打卡提醒：上班時間的下一個整點還沒打上班卡、下班時間的下一個整點還沒打下班卡
+  var wh = workHours_(), dutyP = dutyOf(t);
+  if (dutyP && dutyP['Email']) {
+    var ps = punchSummary_(t, t, dutyP['Email'])[0];
+    if (hour === Number(wh.start.slice(0, 2)) + 1 && !(ps && ps.in)) {
+      mail_([dutyP['Email']].concat(adminsE), dutyP['姓名'] + ' 今天（' + md_(t) + '）還沒打上班卡', '<p>' + esc_(dutyP['姓名']) + ' 今天值班，到現在還沒有上班打卡紀錄。請到系統首頁按「上班打卡」並拍照；忘記打卡請找主管補登。</p>');
+    }
+    if (hour === Number(wh.end.slice(0, 2)) + 1 && !(ps && ps.out)) {
+      mail_([dutyP['Email']].concat(adminsE), dutyP['姓名'] + ' 今天（' + md_(t) + '）還沒打下班卡', '<p>' + esc_(dutyP['姓名']) + ' 今天值班，到現在還沒有下班打卡紀錄。請到系統首頁按「下班打卡」並拍照；忘記打卡請找主管補登。</p>');
     }
   }
 

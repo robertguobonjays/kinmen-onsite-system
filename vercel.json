@@ -6,7 +6,7 @@
   "functions": {
     "api/*.js": {
       "maxDuration": 30,
-      "includeFiles": "src/Code.gs"
+      "includeFiles": "templates/**"
     }
   },
   "headers": [

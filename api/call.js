@@ -1,7 +1,7 @@
 // POST /api/call  { fn: 'api_xxx', args: [...] } → { ok, result } 或 { error }
 const backend = require('../lib/backend');
 
-const DENY = new Set(['api_uploadPhoto', 'api_publicUpload', 'api_uploadFile']); // 檔案走 /api/upload
+const DENY = new Set(['api_uploadPhoto', 'api_publicUpload', 'api_uploadFile', 'api_uploadPunch']); // 檔案走 /api/upload
 
 function origin(req) {
   const h = req.headers['x-forwarded-host'] || req.headers.host;

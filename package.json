@@ -7,10 +7,11 @@
   },
   "scripts": {
     "build": "node scripts/build-web.js",
-    "test": "node test/server.test.js && node test/ui.test.js && node test/proxy.test.js"
+    "test": "node test/server.test.js && node test/ui.test.js && node test/proxy.test.js && node test/punch.test.js"
   },
   "dependencies": {
-    "@vercel/blob": "0.27.3"
+    "@vercel/blob": "0.27.3",
+    "jszip": "3.10.1"
   },
   "devDependencies": {
     "jsdom": "24.1.3"

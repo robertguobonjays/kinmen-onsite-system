@@ -1,6 +1,7 @@
 // POST /api/upload  照片與 SOP 附件存到 Vercel Blob，回傳檔案網址
 //  api_uploadPhoto(token, name, dataUrl)：登入者上傳叫修照片
 //  api_publicUpload(name, dataUrl)：機關報修頁上傳照片（有頻率限制）
+//  api_uploadPunch(token, name, dataUrl)：打卡照片（原圖與縮圖各上傳一次）
 //  api_uploadFile(token, name, dataUrl)：主管上傳 SOP 附件
 const backend = require('../lib/backend');
 
@@ -24,6 +25,10 @@ module.exports = async (req, res) => {
       [, name, dataUrl] = args;
       await backend.call('api_init', [args[0]]); // 檢查登入
       folder = '叫修照片';
+    } else if (fn === 'api_uploadPunch') {
+      [, name, dataUrl] = args;
+      await backend.call('api_init', [args[0]]); // 檢查登入
+      folder = '打卡照片';
     } else if (fn === 'api_uploadFile') {
       [, name, dataUrl] = args;
       await backend.call('api_listPeople', [args[0]]); // 檢查主管權限

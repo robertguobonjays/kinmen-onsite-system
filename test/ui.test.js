@@ -61,7 +61,7 @@ async function login(w, a, p) {
     const txt = () => w.document.getElementById('main').textContent.replace(/\s+/g, ' ');
     console.log('==', acct, '| nav:', w.document.getElementById('nav').textContent, '| who:', w.document.getElementById('who').textContent);
     console.log(' home:', txt().slice(0, 140));
-    for (const p of ['schedule', 'tickets', 'insp', 'sop'].concat(acct === 'admin' ? ['admin'] : [])) {
+    for (const p of ['punch', 'schedule', 'tickets', 'insp', 'sop'].concat(acct === 'admin' ? ['admin'] : [])) {
       w.go(p); await wait(90);
       console.log('  ', p, ':', txt().slice(0, 100));
     }
