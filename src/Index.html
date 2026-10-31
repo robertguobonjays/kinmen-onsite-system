@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
-    --bg: #f5f6f8; --card: #fff; --text: #1d2430; --muted: #8a94a3; --line: #eceef2;
+    --bg: #eff1f4; --card: #fff; --text: #1d2430; --muted: #667085; --line: #d3d8df; --field: #aab2bd;
     --primary: #1f6feb; --primary-weak: #eaf2ff; --ok: #1a8f4c; --ok-weak: #e8f6ee;
     --warn: #b7791f; --warn-weak: #fdf4e3; --bad: #d93a3a; --bad-weak: #fdeeee;
     --radius: 14px;
@@ -31,7 +31,7 @@
   .menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; font-family: inherit; color: var(--text); }
   .menu button:hover { background: var(--bg); }
   main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
-  .card { background: var(--card); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(20,30,50,.04); }
+  .card { background: var(--card); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(20,30,50,.05); }
   .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .card h2 .sp, .sp { flex: 1; }
   .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
@@ -40,13 +40,13 @@
   .hello { margin: 2px 2px 14px; }
   .hello b { font-size: 20px; font-weight: 600; display: block; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .btn { border: 1px solid var(--line); background: #fff; color: var(--text); padding: 8px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; font-family: inherit; line-height: 1.3; text-decoration: none; display: inline-block; }
-  .btn:hover { background: #f8f9fb; }
+  .btn { border: 1px solid var(--field); background: #fff; color: var(--text); padding: 8px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; font-family: inherit; line-height: 1.3; text-decoration: none; display: inline-block; }
+  .btn:hover { background: #f1f3f6; }
   .btn.p { background: var(--primary); color: #fff; border-color: var(--primary); }
   .btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
   .btn.bad { color: var(--bad); }
   .btn.sm { padding: 5px 11px; font-size: 13px; border-radius: 8px; }
-  .btn.ghost { border-color: transparent; background: none; color: var(--muted); }
+  .btn.ghost { border-color: var(--line); background: #fff; color: #4a5361; }
   .btn.ghost:hover { color: var(--text); background: var(--bg); }
   .btn:disabled { opacity: .5; cursor: default; }
   .tag { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; background: #f1f3f6; color: var(--muted); white-space: nowrap; font-weight: 500; }
@@ -55,7 +55,7 @@
   .tag.bad { background: var(--bad-weak); color: var(--bad); }
   .tag.p { background: var(--primary-weak); color: var(--primary); }
   .lv1 { background: var(--bad-weak); color: var(--bad); } .lv2 { background: var(--warn-weak); color: var(--warn); } .lv3 { background: #f1f3f6; color: #5b6573; }
-  input, select, textarea { font-family: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid #dfe3e8; border-radius: 10px; background: #fff; max-width: 100%; color: var(--text); }
+  input, select, textarea { font-family: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--field); border-radius: 10px; background: #fff; max-width: 100%; color: var(--text); }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-weak); }
   input[type=checkbox], input[type=radio] { accent-color: var(--primary); }
   textarea { width: 100%; min-height: 80px; }
@@ -81,8 +81,8 @@
   /* 月曆 */
   .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .cal .hd { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
-  .cal .d { background: #fff; border: 1px solid var(--line); border-radius: 10px; min-height: 72px; padding: 5px 6px; cursor: pointer; font-size: 12px; position: relative; overflow: hidden; }
-  .cal .d:hover { border-color: #cfd5dd; }
+  .cal .d { background: #fff; border: 1px solid var(--field); border-radius: 10px; min-height: 72px; padding: 5px 6px; cursor: pointer; font-size: 12px; position: relative; overflow: hidden; }
+  .cal .d:hover { border-color: var(--primary); }
   .cal .d.past { opacity: .45; }
   .cal .d.today { border-color: var(--text); }
   .cal .d.mineoff { background: var(--bad-weak); }
@@ -106,11 +106,11 @@
   .chk.abn .ext { display: flex; }
   /* 選項 chip */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chips label { border: 1px solid #dfe3e8; border-radius: 10px; padding: 5px 12px; cursor: pointer; font-size: 14px; }
+  .chips label { border: 1px solid var(--field); border-radius: 10px; padding: 5px 12px; cursor: pointer; font-size: 14px; }
   .chips input { display: none; }
   .chips input:checked + span { color: var(--primary); font-weight: 600; }
   .chips label:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); }
-  .lvbox { border: 1px solid #dfe3e8; border-radius: 10px; padding: 9px 12px; margin: 6px 0; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; }
+  .lvbox { border: 1px solid var(--field); border-radius: 10px; padding: 9px 12px; margin: 6px 0; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; }
   .lvbox:has(input:checked) { border-color: var(--primary); background: var(--primary-weak); }
   /* SOP 內容 */
   .doc h3 { font-size: 15px; margin: 18px 0 6px; }
@@ -138,7 +138,7 @@
   #pPrev { max-width: 100%; max-height: 260px; border-radius: 12px; display: none; margin-top: 10px; }
   .camera-btn { display: block; text-align: center; background: var(--bg); border-radius: 12px; padding: 26px 10px; cursor: pointer; color: #5b6573; }
   .camera-btn input { display: none; }
-  .drop { display: block; text-align: center; border: 1.5px dashed #cfd5dd; border-radius: 12px; padding: 18px 10px; cursor: pointer; color: #5b6573; font-size: 14px; }
+  .drop { display: block; text-align: center; border: 1.5px dashed var(--field); border-radius: 12px; padding: 18px 10px; cursor: pointer; color: #5b6573; font-size: 14px; }
   .drop:hover, .drop.on { border-color: var(--primary); background: var(--primary-weak); }
   .drop input { display: none; }
   .att { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
@@ -172,10 +172,16 @@
   @keyframes sh { from { background-position: 200% 0 } to { background-position: -200% 0 } }
   @media (prefers-reduced-motion: reduce) { .sk, .load-tx i, #loading::before { animation-duration: 3s; } }
   .url { display: block; margin: 6px 0 10px; padding: 10px 12px; background: var(--bg); border-radius: 10px; font-size: 14px; word-break: break-all; color: var(--text); text-decoration: none; }
-  .sub { display: inline-flex; background: #e9ecf0; border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sub { display: inline-flex; background: #e1e5ea; border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 14px; flex-wrap: wrap; }
   .sub button { border: 0; background: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; color: #5b6573; }
   .sub button.on { background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .empty { color: var(--muted); padding: 14px 0; text-align: center; font-size: 14px; }
+  .pw { position: relative; }
+  .pw input { width: 100%; padding-right: 44px; }
+  .pw input::-ms-reveal, .pw input::-ms-clear { display: none; }
+  .pw .eye { position: absolute; top: 0; right: 0; bottom: 0; width: 44px; border: 0; background: none; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+  .pw .eye:hover { color: var(--text); }
+  .pw .eye svg { width: 20px; height: 20px; }
   #print { display: none; }
   @media print {
     body.printing > *:not(#print) { display: none !important; }
@@ -184,6 +190,13 @@
     #print th, #print td { border: 1px solid #000; padding: 5px; text-align: left; vertical-align: top; }
     #print h2 { text-align: center; }
   }
+  /* 電腦版：字與元件放大，內容區加寬 */
+  @media screen and (min-width: 1024px) {
+    html { zoom: 1.15; }
+    .hd-in, main { max-width: 1240px; }
+    .modal { max-width: 660px; }
+  }
+  @media screen and (min-width: 1600px) { html { zoom: 1.3; } }
   /* 手機：選單改到底部 */
   @media (max-width: 760px) {
     .hd-in { height: 52px; }
@@ -308,6 +321,21 @@ function prefetch() {
     });
   };
   run('api_batch', [APP.token, list.map(function (c) { return [c.fn, c.args]; })], finish, function () { finish(null); });
+}
+var EYE_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 5.2A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/></svg>';
+/** 密碼欄：右邊的眼睛可切換顯示／隱藏 */
+function pwInput(id, auto, attrs) {
+  return '<div class="pw"><input id="' + id + '" type="password" autocomplete="' + auto + '" ' + (attrs || '') + '>' +
+    '<button type="button" class="eye" tabindex="-1" title="顯示密碼" aria-label="顯示密碼" onclick="togglePw(\'' + id + '\',this)">' + EYE_ON + '</button></div>';
+}
+function togglePw(id, b) {
+  var i = $(id), show = i.type === 'password';
+  i.type = show ? 'text' : 'password';
+  b.innerHTML = show ? EYE_OFF : EYE_ON;
+  b.title = show ? '隱藏密碼' : '顯示密碼';
+  b.setAttribute('aria-label', b.title);
+  i.focus();
 }
 function saveToken(t) { cacheClear(); APP.token = t || ''; try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { } }
 function loadToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
@@ -473,7 +501,7 @@ function showLogin(msg) {
   $('main').innerHTML = '<div class="card" style="max-width:360px;margin:48px auto;padding:28px 24px"><h2 style="font-size:20px;margin-bottom:4px">登入</h2>' +
     '<div class="muted" style="margin-bottom:8px">' + (msg ? esc(msg) : '忘記密碼請找管理員重設') + '</div>' +
     '<input id="lgA" class="full" autocomplete="username" autocapitalize="none" placeholder="帳號或 Email" style="margin-top:10px">' +
-    '<input id="lgP" type="password" class="full" autocomplete="current-password" placeholder="密碼" style="margin-top:10px" onkeydown="if(event.key===\'Enter\')doLogin()">' +
+    '<div style="margin-top:10px">' + pwInput('lgP', 'current-password', 'placeholder="密碼" onkeydown="if(event.key===\'Enter\')doLogin()"') + '</div>' +
     '<button class="btn p full" id="lgBtn" onclick="doLogin()" style="margin-top:16px;padding:11px">登入</button></div>';
   setTimeout(function () { var a = $('lgA'); if (a) a.focus(); }, 50);
 }
@@ -489,9 +517,9 @@ function logout() {
 }
 function pwForm(force) {
   modal('<h3>' + (force ? '第一次登入，請設定新密碼' : '修改密碼') + (force ? '' : '<button class="x" onclick="closeModal()">×</button>') + '</h3>' +
-    '<label class="f">目前密碼</label><input id="pwO" type="password" class="full" autocomplete="current-password">' +
-    '<label class="f">新密碼（至少 6 個字）</label><input id="pwN" type="password" class="full" autocomplete="new-password">' +
-    '<label class="f">再輸入一次新密碼</label><input id="pwN2" type="password" class="full" autocomplete="new-password">' +
+    '<label class="f">目前密碼</label>' + pwInput('pwO', 'current-password') +
+    '<label class="f">新密碼（至少 6 個字）</label>' + pwInput('pwN', 'new-password') +
+    '<label class="f">再輸入一次新密碼</label>' + pwInput('pwN2', 'new-password') +
     '<div class="foot">' + (force ? '' : '<button class="btn" onclick="closeModal()">取消</button>') + '<button class="btn p" onclick="pwSave()">儲存</button></div>');
   APP.lockModal = !!force;
 }
@@ -1281,7 +1309,7 @@ function adSop() {
     body.innerHTML = '<div class="card"><h2>SOP 文件<span class="sp"></span><button class="btn p" onclick="sopForm()">新增文件</button></h2>' +
       (r.list.length ? r.list.map(function (s) {
         var rd = s.must && s.readers ? '・已讀 ' + s.readers.filter(function (x) { return x.at; }).length + '/' + s.readers.length : '';
-        return '<div class="row" style="padding:12px 0;border-top:1px solid var(--line,#eef0f4);flex-wrap:nowrap"><div style="flex:1;min-width:0">' + esc(s.title) + (s.must ? ' <span class="tag warn">必讀</span>' : '') +
+        return '<div class="row" style="padding:12px 0;border-top:1px solid var(--line);flex-wrap:nowrap"><div style="flex:1;min-width:0">' + esc(s.title) + (s.must ? ' <span class="tag warn">必讀</span>' : '') +
           '<div class="muted">' + esc(s.cat) + '・第 ' + esc(s.ver) + ' 版' + (s.atts.length ? '・' + s.atts.length + ' 個附件' : '') + rd + '</div></div>' +
           '<div style="white-space:nowrap"><button class="btn sm ghost" onclick="sopForm(\'' + s.id + '\')">編輯</button> <button class="btn sm ghost" onclick="sopDel(\'' + s.id + '\')">刪除</button></div></div>';
       }).join('') : '<div class="empty">還沒有文件，按「新增文件」開始</div>') + '</div>';

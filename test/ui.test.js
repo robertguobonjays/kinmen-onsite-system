@@ -154,6 +154,19 @@ const TA2 = () => G.api_login('admin', 'boss1234').token;
   console.log('load failed retry:', /重新載入/.test(w.document.getElementById('main').textContent), '| bar:', w.document.getElementById('loading').style.display);
   if (!/重新載入/.test(w.document.getElementById('main').textContent) || w.document.getElementById('loading').style.display !== 'none') errors.push('load fail UI');
 
+  // 改密碼：眼睛可切換顯示
+  w = open('Index.html');
+  await login(w, 'admin', 'boss1234');
+  w.pwForm(); await wait(10);
+  for (const id of ['pwO', 'pwN', 'pwN2']) {
+    const i = w.document.getElementById(id), b = i.parentNode.querySelector('.eye');
+    i.value = 'abc123'; b.click();
+    if (i.type !== 'text' || i.value !== 'abc123' || b.title !== '隱藏密碼') errors.push('eye show ' + id);
+    b.click();
+    if (i.type !== 'password' || i.value !== 'abc123') errors.push('eye hide ' + id);
+  }
+  w.closeModal();
+
   // SOP 管理放在「管理」；SOP 頁只看不改
   w = open('Index.html');
   await login(w, 'admin', 'boss1234');
