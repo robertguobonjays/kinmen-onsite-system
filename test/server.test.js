@@ -193,6 +193,21 @@ ok(G.api_listTickets(TA, {}).find(t => t.id === sr.tickets[0]).source === '巡�
 const url = G.api_uploadFile(TA, '手冊.pdf', 'data:application/pdf;base64,AAAA');
 ok(/drive\.google\.com/.test(url), 'sop upload url');
 expectErr(() => G.api_uploadFile(TS, 'x.pdf', 'data:application/pdf;base64,AAAA'), 'staff cannot upload sop');
+const ATT = [{ name: '手冊.pdf', url: 'https://abc.public.blob.vercel-storage.com/文件附件/a.pdf', size: 100 }, { name: '壞.pdf', url: 'https://evil.example.com/a.pdf' }];
+const sid = G.api_saveSOP(TA, { cat: '測試', title: '附件文件', ver: '1', atts: ATT });
+const sa = G.api_listSOP(TS).list.find(s => s.id === sid);
+ok(sa.atts.length === 1 && sa.atts[0].name === '手冊.pdf', 'sop atts for staff, bad url dropped');
+expectErr(() => G.api_saveSOP(TS, { id: sid, cat: '測試', title: '改', atts: [] }), 'staff cannot edit sop');
+expectErr(() => G.api_deleteSOP(TS, sid), 'staff cannot delete sop');
+const it0 = G.api_listInspItems(TA)[0];
+G.api_saveInspItem(TA, Object.assign({}, it0, { atts: ATT }));
+ok(G.api_getInspections(TS).items.find(x => x.id === it0.id).atts.length === 1, 'insp item atts for staff');
+expectErr(() => G.api_saveInspItem(TS, Object.assign({}, it0, { atts: [] })), 'staff cannot edit insp item');
+expectErr(() => G.api_listInspItems(TS), 'staff cannot list insp editor');
+G.api_saveInspItem(TA, Object.assign({}, it0, { atts: [] }));
+G.api_deleteSOP(TA, sid);
+// 舊試算表沒有「附件」欄：讀得到、存檔時自動補欄
+G.ensureCol_('SOP', '附件');
 const sops = G.api_listSOP(TS).list;
 G.api_markRead(TS, sops[0].id);
 ok(G.api_listSOP(TS).list[0].readAt, 'read');

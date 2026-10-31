@@ -11,8 +11,11 @@ fs.mkdirSync(out, { recursive: true });
   const i = html.indexOf('<script>');
   if (i < 0) throw new Error(src + ' 找不到 <script>');
   html = html.replace('<base target="_top">\n', '');
-  html = html.slice(0, html.indexOf('<script>')) + '<script src="/gas-shim.js"></script>\n' + html.slice(html.indexOf('<script>'));
+  const tags = '<script src="/gas-shim.js"></script>\n' + (src === 'Index.html' ? '<script src="/blob-client.js"></script>\n' : '');
+  html = html.slice(0, html.indexOf('<script>')) + tags + html.slice(html.indexOf('<script>'));
   fs.writeFileSync(path.join(out, dst), html);
 });
 fs.copyFileSync(path.join(root, 'web', 'gas-shim.js'), path.join(out, 'gas-shim.js'));
-console.log('已輸出 public/index.html、public/report.html、public/gas-shim.js');
+require('esbuild').buildSync({ entryPoints: [path.join(root, 'web', 'blob-client.js')], bundle: true, minify: true, platform: 'browser', format: 'iife', target: 'es2018',
+  define: { 'process.env.NODE_ENV': '"production"', global: 'window' }, outfile: path.join(out, 'blob-client.js') });
+console.log('已輸出 public/index.html、public/report.html、public/gas-shim.js、public/blob-client.js');

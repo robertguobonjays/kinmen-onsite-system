@@ -19,14 +19,14 @@ function open(file, query) {
   const html = fs.readFileSync(__dirname + '/../src/' + file, 'utf8');
   const dom = new JSDOM(html, {
     runScripts: 'dangerously', url: 'https://x.test/' + (query || ''), beforeParse(w) {
-      w.alert = () => { }; w.confirm = () => true; w.prompt = () => ''; w.print = () => { };
+      w.scrollTo = () => { }; w.alert = () => { }; w.confirm = () => true; w.prompt = () => ''; w.print = () => { };
       const mk = (s, f) => new Proxy({}, {
         get(_, k) {
           if (k === 'withSuccessHandler') return h => mk(h, f);
           if (k === 'withFailureHandler') return h => mk(s, h);
           return (...a) => setTimeout(() => {
             try { const r = JSON.parse(JSON.stringify(G[k](...a) ?? null)); s && s(r); }
-            catch (e) { if (!/NEED_LOGIN|錯誤/.test(e.message)) errors.push(k + ': ' + e.message); f && f(e); }
+            catch (e) { if (!/NEED_LOGIN|錯誤|已被使用/.test(e.message)) errors.push(k + ': ' + e.message); f && f(e); }
           }, 0);
         }
       });
@@ -115,9 +115,38 @@ async function login(w, a, p) {
     console.log('  logout ->', !!w.document.getElementById('lgA'));
   }
 
-  // 載入失敗不會卡在載入畫面
+  // 點表單外面不會關閉（新增帳號打到一半不會消失）
+  w = open('Index.html');
+  await login(w, 'admin', 'boss1234');
+  if (w.document.getElementById('pwO')) { w.closeModal(); }
+  w.APP.adminSub = 'people'; w.go('admin'); await wait(80);
+  w.personForm(); await wait(10);
+  w.document.getElementById('pN').value = '打到一半';
+  w.document.getElementById('mask').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  console.log('modal stays:', w.document.getElementById('mask').classList.contains('on'));
+  if (!w.document.getElementById('mask').classList.contains('on') || w.document.getElementById('pN').value !== '打到一半') errors.push('modal closed by backdrop');
+  // 帳號重複時保留內容，可以改完再送
+  w.document.getElementById('pAc').value = 'aming'; w.document.getElementById('pE').value = 'x@corp.com';
+  w.personSave(null); await wait(100);
+  if (w.document.getElementById('pN').value !== '打到一半' || w.document.getElementById('pGoSave').disabled) errors.push('person form lost on error');
+  w.APP.personDraft = null; w.closeModal();
+  // 駐點：SOP 沒有新增／編輯／刪除；巡檢沒有編輯入口；附件可下載
   w = open('Index.html');
   await login(w, 'hua', 'pass222');
+  if (w.document.getElementById('pwO')) { w.document.getElementById('pwO').value = 'pass222'; w.document.getElementById('pwN').value = 'pass222x'; w.document.getElementById('pwN2').value = 'pass222x'; w.pwSave(); await wait(80); }
+  w.go('sop'); await wait(100);
+  const staffBtns = () => [...w.document.querySelectorAll('button')].map(b => b.textContent).join('|');
+  w.APP.sops[0].atts = [{ name: '手冊.docx', url: 'https://a.public.blob.vercel-storage.com/x.docx', size: 2048 }];
+  w.sopDetail(w.APP.sops[0].id); await wait(10);
+  const dl = w.document.querySelector('#modal a[href$="?download=1"]');
+  if (!dl || /編輯|刪除/.test(staffBtns())) errors.push('staff sop view');
+  console.log('staff sop download:', !!dl);
+  w.closeModal(); w.go('insp'); await wait(100);
+  if (/編輯巡檢項目/.test(w.document.getElementById('main').textContent)) errors.push('staff sees insp edit');
+
+  // 載入失敗不會卡在載入畫面
+  w = open('Index.html');
+  await login(w, 'hua', 'pass222x');
   w.document.getElementById('main').innerHTML = w.LOADER;
   w.api('api_attendance', '2026-11-30', '2026-11-01', '').catch(() => { });
   await wait(40);
@@ -126,7 +155,7 @@ async function login(w, a, p) {
 
   // 記住登入：localStorage 有 token 直接進入
   w = open('Index.html');
-  await login(w, 'hua', 'pass222');
+  await login(w, 'hua', 'pass222x');
   const saved = w.localStorage.getItem('kos_token');
   console.log('token saved:', !!saved);
 

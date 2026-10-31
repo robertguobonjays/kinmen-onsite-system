@@ -19,9 +19,9 @@ var SHEETS = {
     '回覆期限', '排除期限', '回覆時間', '回覆人', '處理過程', '排除時間', '備品', '機關確認人', '狀態',
     '照片', '事件報告', '建立者', '建立者Email', '更新時間', '已提醒', '來源'],
   '工作紀錄': ['ID', '日期', '時間', '類別', '內容摘要', '處理結果', '處理人', '關聯編號'],
-  '巡檢項目': ['ID', '頻率', '區域', '檢查項目', '排序', '啟用'],
+  '巡檢項目': ['ID', '頻率', '區域', '檢查項目', '排序', '啟用', '附件'],
   '巡檢紀錄': ['紀錄ID', '頻率', '期別', '巡檢時間', '巡檢人Email', '巡檢人', '項目ID', '區域', '檢查項目', '結果', '說明', '機關確認人'],
-  'SOP': ['ID', '分類', '標題', '內容', '文件連結', '版本', '必讀', '更新日', '更新人'],
+  'SOP': ['ID', '分類', '標題', '內容', '文件連結', '版本', '必讀', '更新日', '更新人', '附件'],
   '已讀紀錄': ['SOPID', '版本', 'Email', '姓名', '時間'],
   '寄信佇列': ['ID', '建立時間', '收件者', '主旨', '內容', '狀態', '寄出時間', '錯誤'],
   '工作佇列': ['ID', '建立時間', '類型', '參數', '申請人Email', '狀態', '完成時間', '結果'],
@@ -182,6 +182,24 @@ function header_(name) { // 以工作表實際標題列為準（升級時新增�
     HEAD_[name] = h.length ? h : SHEETS[name];
   }
   return HEAD_[name];
+}
+
+/** 舊試算表沒有這個欄位時，加在最後面 */
+function ensureCol_(name, col) {
+  if (header_(name).indexOf(col) >= 0) return;
+  var s = sh_(name), c = header_(name).length + 1;
+  s.getRange(1, c).setValue(col);
+  delete HEAD_[name];
+}
+
+/** 附件存成 JSON：[{name,url,size}] */
+function attsOf_(v) {
+  try { var a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function cleanAtts_(list) {
+  return JSON.stringify((Array.isArray(list) ? list : []).slice(0, 20).filter(function (a) {
+    return a && /^https:\/\/[\w.-]+\.public\.blob\.vercel-storage\.com\/\S+$/.test(String(a.url));
+  }).map(function (a) { return { name: String(a.name || '附件').slice(0, 120), url: String(a.url), size: Number(a.size) || 0 }; }));
 }
 
 function rowOf_(name, obj) {
@@ -1127,7 +1145,7 @@ function inspectionStatus_(dateStr) {
 
 function inspItems_(activeOnly) {
   return readTable_('巡檢項目').filter(function (x) { return !activeOnly || x['啟用'] !== 'N'; })
-    .map(function (x) { return { id: x['ID'], freq: x['頻率'], area: x['區域'], item: x['檢查項目'], order: Number(x['排序']) || 0, active: x['啟用'] !== 'N' }; })
+    .map(function (x) { return { id: x['ID'], freq: x['頻率'], area: x['區域'], item: x['檢查項目'], order: Number(x['排序']) || 0, active: x['啟用'] !== 'N', atts: attsOf_(x['附件']) }; })
     .sort(function (a, b) { return FREQS.indexOf(a.freq) - FREQS.indexOf(b.freq) || a.order - b.order; });
 }
 
@@ -1206,7 +1224,9 @@ function api_saveInspItem(tk, o) {
   requireAdmin_(tk);
   return withLock_(function () {
     if (!o.area || !o.item || FREQS.indexOf(o.freq) < 0) throw new Error('請填寫頻率、區域與檢查項目。');
+    ensureCol_('巡檢項目', '附件');
     var rec = { '頻率': o.freq, '區域': o.area, '檢查項目': o.item, '排序': o.order || 99, '啟用': o.active === false ? 'N' : 'Y' };
+    if (o.atts) rec['附件'] = cleanAtts_(o.atts);
     if (o.id) {
       var r = readTable_('巡檢項目').filter(function (x) { return x['ID'] === o.id; })[0];
       if (!r) throw new Error('找不到項目');
@@ -1228,7 +1248,7 @@ function api_listSOP(tk) {
       var rs = reads.filter(function (r) { return r['SOPID'] === x['ID'] && r['版本'] === x['版本']; });
       var mine = rs.filter(function (r) { return r['Email'] === me.email; })[0];
       return {
-        id: x['ID'], cat: x['分類'], title: x['標題'], content: x['內容'], link: x['文件連結'], ver: x['版本'], must: x['必讀'] === 'Y',
+        id: x['ID'], cat: x['分類'], title: x['標題'], content: x['內容'], link: x['文件連結'], atts: attsOf_(x['附件']), ver: x['版本'], must: x['必讀'] === 'Y',
         updated: x['更新日'], by: x['更新人'], readAt: mine ? mine['時間'] : '',
         readers: me.isAdmin ? ppl.map(function (p) {
           var r = rs.filter(function (z) { return z['Email'] === p.email; })[0];
@@ -1244,6 +1264,8 @@ function api_saveSOP(tk, o) {
   if (!o.title || !o.cat) throw new Error('請填寫分類與標題。');
   return withLock_(function () {
     var rec = { '分類': o.cat, '標題': o.title, '內容': o.content || '', '文件連結': o.link || '', '版本': o.ver || '1', '必讀': o.must ? 'Y' : 'N', '更新日': today_(), '更新人': me.name };
+    ensureCol_('SOP', '附件');
+    if (o.atts) rec['附件'] = cleanAtts_(o.atts);
     var r = o.id ? readTable_('SOP').filter(function (x) { return x['ID'] === o.id; })[0] : null;
     var verChanged = !r || r['版本'] !== rec['版本'];
     if (r) updateObj_('SOP', r._row, rec); else { rec['ID'] = uid_('S'); appendObj_('SOP', rec); }

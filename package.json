@@ -7,13 +7,14 @@
   },
   "scripts": {
     "build": "node scripts/build-web.js",
-    "test": "node test/server.test.js && node test/ui.test.js && node test/proxy.test.js && node test/punch.test.js"
+    "test": "node test/server.test.js && node test/ui.test.js && node test/proxy.test.js && node test/punch.test.js && node test/upload-token.test.js"
   },
   "dependencies": {
     "@vercel/blob": "0.27.3",
     "jszip": "3.10.1"
   },
   "devDependencies": {
+    "esbuild": "^0.21.5",
     "jsdom": "24.1.3"
   }
 }
