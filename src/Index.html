@@ -215,7 +215,7 @@
 <div id="print"></div>
 
 <script>
-var APP = { init: null, page: 'home', month: null, tkFilter: 'open', tkSub: 'tickets', inspSub: 'fill', inspDate: null, sopCat: '全部', sopQ: '', adminSub: 'people', offset: 0, token: '' };
+var APP = { init: null, page: 'home', month: null, tkFilter: 'open', tkSub: 'tickets', inspSub: 'fill', inspDate: null, sopCat: '全部', sopQ: '', adminSub: 'people', offset: 0, token: '', nav: 0, dirty: false };
 var WD = ['', '一', '二', '三', '四', '五', '六', '日'];
 var COLORS = ['#0b5cad', '#2e7d32', '#8e24aa', '#ef6c00', '#00838f', '#6d4c41'];
 var NOAUTH = ['api_login', 'api_googleLogin'];
@@ -226,23 +226,90 @@ function busy(n) { PENDING = Math.max(0, PENDING + n); $('loading').style.displa
 function loadFailed() { var l = document.querySelector('.loader'); if (l) l.outerHTML = '<div class="card"><div class="empty">載入失敗<div style="margin-top:10px"><button class="btn" onclick="go(APP.page)">重新載入</button></div></div></div>'; }
 
 /* ---------- 共用 ---------- */
+// 看過的頁面先秀暫存資料，同時在背景更新；任何寫入都會清掉暫存，避免看到舊資料
+var READS = { api_home: 1, api_getSchedule: 1, api_listTickets: 1, api_getInspections: 1, api_listSOP: 1, api_attendance: 1, api_listInspItems: 1, api_listWorklog: 1, api_inspectionHistory: 1 };
+var NO_CLEAR = { api_login: 1, api_googleLogin: 1, api_logout: 1, api_init: 1, api_monthReport: 1, api_batch: 1, api_listPeople: 1 };
+var CACHE = {}, WAIT = {}, COLD = {}, REV = {}, GEN = 0, FRESH_MS = 10000;
+function cacheClear() { CACHE = {}; WAIT = {}; COLD = {}; REV = {}; GEN++; }
+function cachePut(key, j) { CACHE[key] = { j: j, t: Date.now() }; }
+function run(fn, args, ok, fail) { google.script.run.withSuccessHandler(ok).withFailureHandler(fail)[fn].apply(null, args); }
+function needLogin(msg) { if (msg.indexOf('NEED_LOGIN') < 0) return false; saveToken(''); showLogin('登入已過期，請重新登入'); return true; }
 function api(fn) {
-  var args = Array.prototype.slice.call(arguments, 1);
+  var args = Array.prototype.slice.call(arguments, 1), orig = arguments;
+  var key = READS[fn] ? fn + JSON.stringify(args) : '';
   if (NOAUTH.indexOf(fn) < 0) args.unshift(APP.token);
+  if (key && CACHE[key]) {
+    if (Date.now() - CACHE[key].t > FRESH_MS) revalidate(key, fn, args);
+    return Promise.resolve(JSON.parse(CACHE[key].j));
+  }
+  if (key && WAIT[key]) { // 預先載入正在拿這份資料，等它就好
+    busy(1);
+    return WAIT[key].then(function (j) { busy(-1); return j ? JSON.parse(j) : api.apply(null, orig); });
+  }
+  var gen = GEN;
+  if (key) COLD[key] = 1;
   busy(1);
   return new Promise(function (res, rej) {
-    google.script.run
-      .withSuccessHandler(function (r) { busy(-1); res(r); })
-      .withFailureHandler(function (e) {
-        busy(-1);
-        var msg = e && e.message ? e.message : String(e);
-        if (msg.indexOf('NEED_LOGIN') >= 0) { saveToken(''); showLogin('登入已過期，請重新登入'); }
-        else { toast(msg, true); loadFailed(); }
-        rej(e);
-      })[fn].apply(null, args);
+    run(fn, args, function (r) {
+      busy(-1);
+      if (key) { delete COLD[key]; if (gen === GEN) cachePut(key, JSON.stringify(r)); }
+      else if (!NO_CLEAR[fn]) { cacheClear(); prefetchSoon(); }
+      res(r);
+    }, function (e) {
+      busy(-1);
+      if (key) delete COLD[key]; else if (!NO_CLEAR[fn]) cacheClear();
+      var msg = e && e.message ? e.message : String(e);
+      if (!needLogin(msg)) { toast(msg, true); loadFailed(); }
+      rej(e);
+    });
   });
 }
-function saveToken(t) { APP.token = t || ''; try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { } }
+function revalidate(key, fn, args) {
+  if (REV[key]) return;
+  REV[key] = 1;
+  var gen = GEN, nav = APP.nav;
+  busy(1);
+  run(fn, args, function (r) {
+    busy(-1);
+    if (gen !== GEN) return;
+    delete REV[key];
+    var j = JSON.stringify(r), changed = !CACHE[key] || CACHE[key].j !== j;
+    cachePut(key, j);
+    if (changed && nav === APP.nav && canRedraw()) PAGE_FN[APP.page]();
+  }, function (e) {
+    busy(-1);
+    if (gen === GEN) delete REV[key];
+    var msg = e && e.message ? e.message : String(e);
+    if (!needLogin(msg)) toast('網路不穩，畫面可能不是最新資料', true);
+  });
+}
+/** 使用者正在操作就不重畫，以免打到一半的內容不見 */
+function canRedraw() {
+  if (APP.dirty || $('mask').classList.contains('on')) return false;
+  var d = APP.page === 'insp' && APP.inspDraft;
+  return !d || !Object.keys(d).some(function (k) { return d[k].result || d[k].note; });
+}
+function prefetchSoon() { clearTimeout(APP._pf); APP._pf = setTimeout(prefetch, 1500); }
+function prefetch() {
+  if (!APP.token || !APP.init) return;
+  var t = APP.init.today, list = [['api_home', []], ['api_getSchedule', [APP.month]], ['api_listTickets', [APP.tkFilter === 'open' ? { open: true } : { month: APP.tkFilter }]],
+    ['api_getInspections', [APP.inspDate]], ['api_listSOP', []], ['api_attendance', [APP.pFrom || t, APP.pTo || t, APP.pWho || '']]];
+  if (isAdmin()) list.push(['api_listInspItems', []]);
+  list = list.map(function (c) { return { fn: c[0], args: c[1], key: c[0] + JSON.stringify(c[1]) }; })
+    .filter(function (c) { return !CACHE[c.key] && !WAIT[c.key] && !COLD[c.key]; });
+  if (!list.length) return;
+  var gen = GEN, done = {};
+  list.forEach(function (c) { WAIT[c.key] = new Promise(function (res) { done[c.key] = res; }); });
+  var finish = function (rs) {
+    list.forEach(function (c, i) {
+      var r = rs && rs[i], j = r && r.ok ? JSON.stringify(r.result) : null;
+      if (gen === GEN) { delete WAIT[c.key]; if (j) cachePut(c.key, j); }
+      done[c.key](j);
+    });
+  };
+  run('api_batch', [APP.token, list.map(function (c) { return [c.fn, c.args]; })], finish, function () { finish(null); });
+}
+function saveToken(t) { cacheClear(); APP.token = t || ''; try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { } }
 function loadToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function $(id) { return document.getElementById(id); }
@@ -357,6 +424,7 @@ function attUpload(f) {
   APP.attBusy++; drawAtts('上傳中：' + f.name);
   return attSend(f, type).then(function (url) {
     APP.atts.push({ name: f.name, url: url, size: f.size }); drawAtts();
+    if ($('sTitle') && !$('sTitle').value.trim()) $('sTitle').value = f.name.replace(/\.\w+$/, '');
   }).catch(function (e) {
     drawAtts(); toast(f.name + ' 上傳失敗：' + (e && e.message ? e.message : e), true);
   }).then(function () { APP.attBusy--; });
@@ -392,6 +460,8 @@ function enter(mustChange) {
       '<button onclick="pwForm()">改密碼</button><button onclick="logout()">登出</button></div>';
     renderNav();
     go(location.hash ? location.hash.slice(1) : 'home');
+    prefetchSoon();
+    if (!APP._dirtyOn) { APP._dirtyOn = 1; ['input', 'change'].forEach(function (ev) { $('main').addEventListener(ev, function () { APP.dirty = true; }, true); }); }
     if (mustChange || r.me.mustChange) pwForm(true);
   }).catch(function (e) {
     var msg = e && e.message ? e.message : String(e);
@@ -449,11 +519,12 @@ function renderNav(badges) {
 }
 function go(p) {
   if (!PAGES.some(function (x) { return x[0] === p; }) || (p === 'admin' && !isAdmin())) p = 'home';
-  APP.page = p; renderNav();
+  APP.page = p; APP.nav++; APP.dirty = false; renderNav();
   try { history.replaceState(null, '', '#' + p); } catch (e) { }
   $('main').innerHTML = LOADER; window.scrollTo(0, 0);
-  ({ home: pageHome, punch: pagePunch, schedule: pageSchedule, tickets: pageTickets, insp: pageInsp, sop: pageSop, admin: pageAdmin })[p]();
+  PAGE_FN[p]();
 }
+var PAGE_FN = { home: function () { pageHome(); }, punch: function () { pagePunch(); }, schedule: function () { pageSchedule(); }, tickets: function () { pageTickets(); }, insp: function () { pageInsp(); }, sop: function () { pageSop(); }, admin: function () { pageAdmin(); } };
 
 /* ---------- 首頁 ---------- */
 function pageHome() {
@@ -561,7 +632,7 @@ function pagePunch() {
     drawPunchList();
   });
 }
-function pfGo() { APP.pFrom = val('pfF'); APP.pTo = val('pfT'); APP.pWho = $('pfW') ? $('pfW').value : ''; drawPunchList(); }
+function pfGo() { APP.dirty = false; APP.nav++; APP.pFrom = val('pfF'); APP.pTo = val('pfT'); APP.pWho = $('pfW') ? $('pfW').value : ''; drawPunchList(); }
 function drawPunchList() {
   api('api_attendance', APP.pFrom, APP.pTo, APP.pWho).then(function (r) {
     APP.att = r;
@@ -964,6 +1035,7 @@ function printLog(m) {
 
 /* ---------- 巡檢 ---------- */
 function pageInsp() {
+  APP.dirty = false;
   $('main').innerHTML = '<div class="sub"><button class="' + (APP.inspSub === 'fill' ? 'on' : '') + '" onclick="APP.inspSub=\'fill\';pageInsp()">填寫巡檢</button>' +
     '<button class="' + (APP.inspSub === 'hist' ? 'on' : '') + '" onclick="APP.inspSub=\'hist\';pageInsp()">巡檢紀錄</button></div>' +
     (isAdmin() ? ' <button class="btn sm" style="vertical-align:top;margin-top:5px" onclick="APP.adminSub=\'items\';go(\'admin\')">編輯巡檢項目與附件</button>' : '') + '<div id="inBody">' + LOADER + '</div>';
@@ -1090,7 +1162,7 @@ function drawSop() {
   renderNav(Object.assign({}, APP.badges, { sop: unread || '' }));
   var html = '<div class="row" style="margin-bottom:12px"><input id="sopQ" placeholder="搜尋" style="flex:1;min-width:180px" value="' + esc(APP.sopQ) + '" oninput="APP.sopQ=this.value;clearTimeout(APP._sq);APP._sq=setTimeout(function(){drawSop();var e=$(\'sopQ\');e.focus();e.setSelectionRange(e.value.length,e.value.length);},250)">' +
     '<select onchange="APP.sopCat=this.value;drawSop()">' + cats.map(function (c) { return '<option' + (APP.sopCat === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
-    (isAdmin() ? '<button class="btn p" onclick="sopForm()">新增</button>' : '') + '</div>';
+    (isAdmin() ? '<button class="btn" onclick="APP.adminSub=\'sop\';go(\'admin\')">管理 SOP</button>' : '') + '</div>';
   html += '<div class="card">' + (shown.length ? shown.map(function (s) {
     var rd = isAdmin() && s.readers ? s.readers.filter(function (x) { return x.at; }).length + '/' + s.readers.length + ' 已讀' : '';
     return '<div class="todo" onclick="sopDetail(\'' + s.id + '\')"><span class="tx">' + esc(s.title) + '<div class="muted">' + esc(s.cat) + (s.atts.length ? '・' + s.atts.length + ' 個附件' : '') + (rd ? '・' + rd : '') + '</div></span>' +
@@ -1107,19 +1179,20 @@ function sopDetail(id) {
     (s.link ? '<p><a class="btn" href="' + esc(s.link) + '" target="_blank" rel="noopener">開啟文件連結</a></p>' : '') +
     (s.atts.length ? '<label class="f">附件</label>' + attList(s.atts) : '') +
     '<div class="doc">' + renderDoc(s.content) + '</div>' + readers +
-    '<div class="foot">' + (isAdmin() ? '<button class="btn bad" onclick="sopDel(\'' + id + '\')">刪除</button><button class="btn" onclick="sopForm(\'' + id + '\')">編輯</button>' : '') +
+    '<div class="foot">' +
     (s.readAt ? '<span class="tag ok" style="align-self:center">已於 ' + esc(s.readAt) + ' 讀完</span>' : '<button class="btn ok" onclick="sopRead(\'' + id + '\')">我已讀完</button>') + '</div>');
 }
 function sopRead(id) { api('api_markRead', id).then(function () { closeModal(); toast('已記錄'); pageSop(); }); }
+function sopBack() { if (APP.page === 'admin') adSop(); else pageSop(); }
 function sopForm(id) {
   var s = id ? APP.sops.filter(function (x) { return x.id === id; })[0] : { cat: APP.sopCat === '全部' ? '' : APP.sopCat, title: '', content: '', link: '', atts: [], ver: '1', must: false };
   var cats = [];
   APP.sops.forEach(function (x) { if (cats.indexOf(x.cat) < 0) cats.push(x.cat); });
   modal('<h3>' + (id ? '編輯文件' : '新增文件') + '<button class="x" onclick="closeModal()">×</button></h3>' +
     '<label class="f">分類 *</label><input id="sCat" class="full" list="sCats" value="' + esc(s.cat) + '"><datalist id="sCats">' + cats.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>' +
-    '<label class="f">標題 *</label><input id="sTitle" class="full" value="' + esc(s.title) + '">' +
-    '<label class="f">內容（「# 」開頭＝小標題、「- 」＝項目、「1. 」＝步驟）</label><textarea id="sBody" style="min-height:260px">' + esc(s.content) + '</textarea>' +
+    '<label class="f">標題 *（沒填時，用上傳的第一個檔名）</label><input id="sTitle" class="full" value="' + esc(s.title) + '">' +
     attEditor(s.atts) +
+    '<label class="f">內容（選填；「# 」開頭＝小標題、「- 」＝項目、「1. 」＝步驟）</label><textarea id="sBody" style="min-height:180px">' + esc(s.content) + '</textarea>' +
     '<label class="f">外部連結（選填，例如雲端硬碟的影片）</label><input id="sLink" class="full" value="' + esc(s.link) + '">' +
     '<div class="row"><div><label class="f">版本</label><input id="sVer" value="' + esc(s.ver) + '" style="width:80px"></div>' +
     (id ? '<button class="btn sm" style="margin-top:28px" onclick="$(\'sVer\').value=String((parseInt($(\'sVer\').value,10)||1)+1)">版本＋1（大家要重新閱讀）</button>' : '') + '</div>' +
@@ -1130,15 +1203,15 @@ function sopForm(id) {
 function sopSave(id) {
   if (APP.attBusy) return toast('檔案還在上傳，請稍等', true);
   api('api_saveSOP', { id: id, cat: val('sCat'), title: val('sTitle'), content: $('sBody').value, link: val('sLink'), atts: APP.atts, ver: val('sVer'), must: $('sMust').checked, notify: $('sNotify').checked })
-    .then(function () { closeModal(); toast('已儲存'); pageSop(); });
+    .then(function () { closeModal(); toast('已儲存'); sopBack(); });
 }
-function sopDel(id) { if (confirm('確定刪除這份文件？')) api('api_deleteSOP', id).then(function () { closeModal(); pageSop(); }); }
+function sopDel(id) { if (confirm('確定刪除這份文件？（附件連結也會一起從系統移除）')) api('api_deleteSOP', id).then(function () { closeModal(); toast('已刪除'); sopBack(); }); }
 
 /* ---------- 管理（主管） ---------- */
 function pageAdmin() {
-  var subs = [['people', '帳號'], ['settings', '設定'], ['items', '巡檢項目'], ['report', '月維護報告']];
+  var subs = [['people', '帳號'], ['settings', '設定'], ['sop', 'SOP'], ['items', '巡檢項目'], ['report', '月維護報告']];
   $('main').innerHTML = '<div class="sub">' + subs.map(function (s) { return '<button class="' + (APP.adminSub === s[0] ? 'on' : '') + '" onclick="APP.adminSub=\'' + s[0] + '\';pageAdmin()">' + s[1] + '</button>'; }).join('') + '</div><div id="adBody">' + LOADER + '</div>';
-  ({ people: adPeople, settings: adSettings, items: adItems, report: adReport })[APP.adminSub]();
+  ({ people: adPeople, settings: adSettings, sop: adSop, items: adItems, report: adReport })[APP.adminSub]();
 }
 var ROLE_DESC = { '管理員': '全部功能，含帳號管理', '主管': '排班、發布、SOP 編輯、月報、設定（不能管帳號）', '駐點': '登記不能上班日、巡檢、叫修、讀 SOP' };
 function adPeople() {
@@ -1199,6 +1272,20 @@ function saveSettings() {
   var m = {};
   APP._stKeys.forEach(function (k, i) { m[k] = val('st' + i); });
   api('api_saveSettings', m).then(function (s) { APP.init.settings = s; toast('已儲存'); });
+}
+function adSop() {
+  api('api_listSOP').then(function (r) {
+    APP.sops = r.list;
+    var body = $('adBody');
+    if (!body) return;
+    body.innerHTML = '<div class="card"><h2>SOP 文件<span class="sp"></span><button class="btn p" onclick="sopForm()">新增文件</button></h2>' +
+      (r.list.length ? r.list.map(function (s) {
+        var rd = s.must && s.readers ? '・已讀 ' + s.readers.filter(function (x) { return x.at; }).length + '/' + s.readers.length : '';
+        return '<div class="row" style="padding:12px 0;border-top:1px solid var(--line,#eef0f4);flex-wrap:nowrap"><div style="flex:1;min-width:0">' + esc(s.title) + (s.must ? ' <span class="tag warn">必讀</span>' : '') +
+          '<div class="muted">' + esc(s.cat) + '・第 ' + esc(s.ver) + ' 版' + (s.atts.length ? '・' + s.atts.length + ' 個附件' : '') + rd + '</div></div>' +
+          '<div style="white-space:nowrap"><button class="btn sm ghost" onclick="sopForm(\'' + s.id + '\')">編輯</button> <button class="btn sm ghost" onclick="sopDel(\'' + s.id + '\')">刪除</button></div></div>';
+      }).join('') : '<div class="empty">還沒有文件，按「新增文件」開始</div>') + '</div>';
+  });
 }
 function adItems() {
   api('api_listInspItems').then(function (items) {

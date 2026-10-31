@@ -93,10 +93,13 @@ function onOpen() {
 /* ============================== 共用工具 ============================== */
 
 var HEAD_ = {};
+var VALS_ = {}; // 同一次請求內同一張表只讀一次；用 sh_ 碰到該表（含寫入）就作廢
+var NO_AUTO_ = false; // 預先載入時不觸發自動預排
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
 function sh_(name) {
+  delete VALS_[name];
   var ss = ss_(), s = ss.getSheetByName(name);
   if (!s && SHEETS[name]) { // 新版本新增的工作表：第一次用到時自動建立
     s = ss.insertSheet(name);
@@ -160,7 +163,8 @@ function cell_(v) {
 }
 
 function readTable_(name) {
-  var s = sh_(name), vals = s.getDataRange().getValues();
+  var vals = VALS_[name];
+  if (!vals) { vals = sh_(name).getDataRange().getValues(); VALS_[name] = vals; }
   var head = vals[0].map(String), out = [];
   for (var r = 1; r < vals.length; r++) {
     var o = { _row: r + 1 }, empty = true;
@@ -238,6 +242,7 @@ function rewrite_(name, objs) { // 整張表重寫（排班用，資料量小）
 function withLock_(fn) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  VALS_ = {}; // 等鎖期間別人可能改過，要讀最新的
   try { return fn(); } finally { lock.releaseLock(); }
 }
 
@@ -454,6 +459,21 @@ function api_init(tk) {
   };
 }
 
+/** 預先載入：一次請求拿多頁資料（只限唯讀功能），各頁換頁時就不用再等 */
+var BATCH_READS_ = ['api_home', 'api_getSchedule', 'api_listTickets', 'api_getInspections', 'api_listSOP', 'api_attendance', 'api_listInspItems'];
+function api_batch(tk, calls) {
+  me_(tk);
+  NO_AUTO_ = true;
+  try {
+    return (Array.isArray(calls) ? calls : []).slice(0, 10).map(function (c) {
+      try {
+        if (BATCH_READS_.indexOf(c[0]) < 0) throw new Error('不支援的功能');
+        return { ok: true, result: globalThis[c[0]].apply(null, [tk].concat(c[1] || [])) };
+      } catch (e) { return { error: String((e && e.message) || e) }; }
+    });
+  } finally { NO_AUTO_ = false; }
+}
+
 /* ============================== 首頁 ============================== */
 
 function api_home(tk) {
@@ -531,7 +551,7 @@ function touchMonth_(month) { setMonthRow_(month, { '登記異動': fmt_(new Dat
 
 function api_getSchedule(tk, month) {
   var me = me_(tk), t = today_(), auto = '';
-  if (me.isAdmin && month >= t.slice(0, 7) && staff_().length) {
+  if (!NO_AUTO_ && me.isAdmin && month >= t.slice(0, 7) && staff_().length) {
     var row0 = monthRows_()[month] || {}, st0 = row0['狀態'] || '未排班';
     if (st0 === '未排班') { autoSchedule_(month, true); auto = 'new'; }
     else if (st0 === '草稿' && row0['登記異動'] && row0['登記異動'] > (row0['預排時間'] || '')) { autoSchedule_(month, true); auto = 'redo'; }
@@ -1610,7 +1630,7 @@ function cleanupProps_(props, t) {
 
 function setup() {
   var ss = ss_();
-  HEAD_ = {};
+  HEAD_ = {}; VALS_ = {};
   Object.keys(SHEETS).forEach(function (name) {
     var s = ss.getSheetByName(name);
     if (!s) s = ss.insertSheet(name);
@@ -1626,7 +1646,7 @@ function setup() {
     }
     s.getRange(1, 1, s.getMaxRows(), s.getLastColumn()).setNumberFormat('@');
   });
-  HEAD_ = {};
+  HEAD_ = {}; VALS_ = {};
   ['工作表1', 'Sheet1'].forEach(function (n) { var s = ss.getSheetByName(n); if (s && ss.getSheets().length > 1 && s.getLastRow() === 0) ss.deleteSheet(s); });
 
   // 設定：補上新項目

@@ -42,6 +42,7 @@ async function login(w, a, p) {
   w.doLogin(); await wait(120);
 }
 
+const TA2 = () => G.api_login('admin', 'boss1234').token;
 (async () => {
   // 登入畫面與錯誤密碼
   let w = open('Index.html');
@@ -85,7 +86,7 @@ async function login(w, a, p) {
       w.personDel('n@corp.com'); await wait(100);
       for (const s of ['settings', 'items', 'report']) { w.APP.adminSub = s; w.go('admin'); await wait(90); }
       w.APP.adminSub = 'settings'; w.go('admin'); await wait(60); w.saveSettings(); await wait(80);
-      w.go('sop'); await wait(80); w.sopForm(w.APP.sops[0].id); await wait(10);
+      w.APP.adminSub = 'sop'; w.go('admin'); await wait(80); w.sopForm(w.APP.sops[0].id); await wait(10);
       console.log('  sop upload ui:', !!w.document.getElementById('sFile'));
       w.sopSave(w.APP.sops[0].id); await wait(100);
     } else {
@@ -152,6 +153,47 @@ async function login(w, a, p) {
   await wait(40);
   console.log('load failed retry:', /重新載入/.test(w.document.getElementById('main').textContent), '| bar:', w.document.getElementById('loading').style.display);
   if (!/重新載入/.test(w.document.getElementById('main').textContent) || w.document.getElementById('loading').style.display !== 'none') errors.push('load fail UI');
+
+  // SOP 管理放在「管理」；SOP 頁只看不改
+  w = open('Index.html');
+  await login(w, 'admin', 'boss1234');
+  w.APP.adminSub = 'sop'; w.go('admin'); await wait(120);
+  const adTxt = w.document.getElementById('adBody').textContent;
+  if (!/新增文件/.test(adTxt) || !/編輯/.test(adTxt) || !/刪除/.test(adTxt)) errors.push('admin sop tab');
+  w.sopForm(); await wait(10);
+  w.document.getElementById('sCat').value = '測試'; w.document.getElementById('sTitle').value = '新文件X';
+  w.sopSave(''); await wait(120);
+  if (!/新文件X/.test(w.document.getElementById('adBody').textContent)) errors.push('admin sop add');
+  const newId = w.APP.sops.filter(s => s.title === '新文件X')[0].id;
+  w.sopDel(newId); await wait(120);
+  if (/新文件X/.test(w.document.getElementById('adBody').textContent)) errors.push('admin sop delete');
+  w.go('sop'); await wait(100);
+  w.sopDetail(w.APP.sops[0].id); await wait(10);
+  if (/編輯|刪除/.test(w.document.getElementById('modal').textContent)) errors.push('sop page should be view only');
+  w.closeModal();
+
+  // 換頁：看過的頁面不用等；寫入後不會看到舊資料
+  let calls = 0;
+  const realRun = w.google.script.run;
+  w.google.script.run = new Proxy({}, { get(_, k) { return (...a) => { if (k !== 'withSuccessHandler' && k !== 'withFailureHandler') calls++; return realRun[k](...a); }; } });
+  w.go('sop'); await wait(0);
+  if (w.document.querySelector('.loader')) errors.push('cached page should show at once');
+  w.google.script.run = realRun;
+  const before = w.CACHE;
+  w.sopRead(w.APP.sops[0].id); await wait(100);
+  if (w.CACHE === before) errors.push('write should clear cache');
+  // 背景更新到新資料時要重畫；有開表單就不重畫
+  G.api_saveSOP(TA2(), { cat: '測試', title: '別人新增的', content: '', ver: '1' });
+  w.go('sop'); await wait(100);
+  Object.keys(w.CACHE).forEach(k => { w.CACHE[k].t = 0; });
+  w.go('sop'); await wait(100);
+  if (!/別人新增的/.test(w.document.getElementById('main').textContent)) errors.push('background refresh should redraw');
+  // 預先載入：唯讀資料一次拿回，不接受寫入功能
+  w.cacheClear(); w.prefetch(); await wait(80);
+  if (!Object.keys(w.CACHE).some(k => k.indexOf('api_listSOP') === 0) || !Object.keys(w.CACHE).some(k => k.indexOf('api_getSchedule') === 0)) errors.push('prefetch');
+  const tk = w.APP.token, br = G.api_batch(tk, [['api_deleteSOP', [newId]], ['api_listSOP', []]]);
+  if (!br[0].error || !br[1].ok) errors.push('batch whitelist');
+  console.log('cache+prefetch ok');
 
   // 記住登入：localStorage 有 token 直接進入
   w = open('Index.html');
