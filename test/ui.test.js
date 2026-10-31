@@ -73,7 +73,7 @@ const TA2 = () => G.api_login('admin', 'boss1234').token;
       w.APP.month = '2026-12'; w.pageSchedule(); await wait(120);
       console.log('  open Dec ->', w.document.getElementById('toast').textContent, '| cells:', w.document.querySelectorAll('.cal .d .who').length);
       w.dayClick('2026-12-05'); await wait(10); w.adminSelfOff('2026-12-05', false); await wait(100);
-      w.dayClick('2026-12-06'); await wait(10); w.document.getElementById('shWho').value = 'b@corp.com'; w.saveShift('2026-12-06'); await wait(100);
+      w.dayClick('2026-12-06'); await wait(10); w.document.querySelector('input[name=shWho][value="b@corp.com"]').checked = true; w.saveShift('2026-12-06'); await wait(100);
       w.autoSchedule(); await wait(120); w.publishSchedule(); await wait(100); w.printSchedule(); await wait(150);
       // 帳號
       w.APP.adminSub = 'people'; w.go('admin'); await wait(80);
@@ -90,8 +90,9 @@ const TA2 = () => G.api_login('admin', 'boss1234').token;
       console.log('  sop upload ui:', !!w.document.getElementById('sFile'));
       w.sopSave(w.APP.sops[0].id); await wait(100);
     } else {
-      w.dayClick('2026-11-20'); await wait(20); w.document.getElementById('unReason').value = '測試'; w.saveUnavail('2026-11-20'); await wait(100);
-      console.log('  unavail ->', w.document.getElementById('toast').textContent);
+      w.dayClick('2026-11-20'); await wait(20); // 已發布的月份：點日期是申請請假
+      if (w.document.getElementById('lvS').value !== '2026-11-20') errors.push('published day opens leave form');
+      w.closeModal();
       w.APP.month = '2026-12'; w.pageSchedule(); await wait(100);
       console.log('  Dec staff sees:', w.APP.sch.visible, '| button:', [...w.document.querySelectorAll('#main button')].map(b => b.textContent).filter(t => /聽安排|登記好/.test(t)).join());
       w.confirmMonth(); await wait(100);
@@ -153,6 +154,40 @@ const TA2 = () => G.api_login('admin', 'boss1234').token;
   await wait(40);
   console.log('load failed retry:', /重新載入/.test(w.document.getElementById('main').textContent), '| bar:', w.document.getElementById('loading').style.display);
   if (!/重新載入/.test(w.document.getElementById('main').textContent) || w.document.getElementById('loading').style.display !== 'none') errors.push('load fail UI');
+
+  // 排班：管理員多選指派；駐點看到清楚說明與請假
+  w = open('Index.html');
+  await login(w, 'admin', 'boss1234');
+  w.go('schedule'); await wait(120);
+  if (!/排\s*\d+ 月的班|班表已發布/.test(w.document.querySelector('.notice').textContent)) errors.push('admin schedule notice');
+  w.shiftModal('2026-11-20'); await wait(10);
+  const boxes = w.document.querySelectorAll('input[name=shWho]');
+  if (boxes.length < 3) errors.push('assign list');
+  boxes.forEach((b, i) => { b.checked = i < 2; });
+  w.saveShift('2026-11-20'); await wait(120);
+  const d20 = w.APP.sch.days.find(d => d.date === '2026-11-20');
+  if (d20.people.length !== 2) errors.push('multi assign ui');
+  w = open('Index.html');
+  await login(w, 'hua', 'pass222x');
+  await wait(20); w.closeModal();
+  w.go('schedule'); await wait(120);
+  if (!/排班|班表/.test(w.document.querySelector('.notice').textContent)) errors.push('staff schedule notice');
+  w.APP.schSub = 'leave'; w.pageSchedule(); await wait(100);
+  if (!/我的請假紀錄/.test(w.document.getElementById('main').textContent)) errors.push('staff leave title');
+  w.leaveForm('2026-11-04'); await wait(10);
+  if (!/未滿 1 週/.test(w.document.getElementById('lvHint').textContent)) errors.push('leave short notice hint');
+  w.leaveSend(); await wait(30);
+  if (!w.document.getElementById('mask').classList.contains('on')) errors.push('reason required keeps form');
+  w.document.getElementById('lvR').value = '看醫生'; w.leaveSend(); await wait(120);
+  if (!/看醫生/.test(w.document.getElementById('main').textContent)) errors.push('leave listed');
+  w = open('Index.html');
+  await login(w, 'admin', 'boss1234');
+  w.APP.schSub = 'leave'; w.go('schedule'); await wait(120);
+  const mt = w.document.getElementById('main').textContent;
+  if (!/全部請假紀錄/.test(mt) || !/待核可/.test(mt) || !/核可/.test(mt)) errors.push('admin leave page');
+  w.leaveApprove(w.APP.leaves[0].id); await wait(120);
+  if (w.APP.leaves[0].status !== '已核可') errors.push('admin approve ui');
+  console.log('schedule+leave ui ok');
 
   // 改密碼：眼睛可切換顯示
   w = open('Index.html');

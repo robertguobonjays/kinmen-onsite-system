@@ -92,6 +92,13 @@
   .cal .who { display: block; margin-top: 4px; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cal .off { display: block; color: var(--bad); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cal .mk { position: absolute; right: 6px; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); font-size: 0; }
+  .cal .d.mine { border: 2px solid var(--primary); padding: 4px 5px; }
+  .notice { border: 1px solid #b9d2fb; background: var(--primary-weak); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+  .notice b { display: block; font-size: 16px; margin-bottom: 2px; }
+  .notice.warn { border-color: #efd28f; background: var(--warn-weak); }
+  .notice.ok { border-color: #a9dcbd; background: var(--ok-weak); }
+  .lv { padding: 13px 0; border-top: 1px solid var(--line); }
+  .lv .row { flex-wrap: wrap; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 12px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
   .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; }
@@ -228,7 +235,7 @@
 <div id="print"></div>
 
 <script>
-var APP = { init: null, page: 'home', month: null, tkFilter: 'open', tkSub: 'tickets', inspSub: 'fill', inspDate: null, sopCat: '全部', sopQ: '', adminSub: 'people', offset: 0, token: '', nav: 0, dirty: false };
+var APP = { init: null, page: 'home', month: null, tkFilter: 'open', tkSub: 'tickets', inspSub: 'fill', inspDate: null, sopCat: '全部', sopQ: '', adminSub: 'people', schSub: 'plan', leaveWho: '', leaveSt: '', offset: 0, token: '', nav: 0, dirty: false };
 var WD = ['', '一', '二', '三', '四', '五', '六', '日'];
 var COLORS = ['#0b5cad', '#2e7d32', '#8e24aa', '#ef6c00', '#00838f', '#6d4c41'];
 var NOAUTH = ['api_login', 'api_googleLogin'];
@@ -240,7 +247,7 @@ function loadFailed() { var l = document.querySelector('.loader'); if (l) l.oute
 
 /* ---------- 共用 ---------- */
 // 看過的頁面先秀暫存資料，同時在背景更新；任何寫入都會清掉暫存，避免看到舊資料
-var READS = { api_home: 1, api_getSchedule: 1, api_listTickets: 1, api_getInspections: 1, api_listSOP: 1, api_attendance: 1, api_listInspItems: 1, api_listWorklog: 1, api_inspectionHistory: 1 };
+var READS = { api_home: 1, api_getSchedule: 1, api_listTickets: 1, api_getInspections: 1, api_listSOP: 1, api_attendance: 1, api_listInspItems: 1, api_listLeave: 1, api_listWorklog: 1, api_inspectionHistory: 1 };
 var NO_CLEAR = { api_login: 1, api_googleLogin: 1, api_logout: 1, api_init: 1, api_monthReport: 1, api_batch: 1, api_listPeople: 1 };
 var CACHE = {}, WAIT = {}, COLD = {}, REV = {}, GEN = 0, FRESH_MS = 10000;
 function cacheClear() { CACHE = {}; WAIT = {}; COLD = {}; REV = {}; GEN++; }
@@ -306,7 +313,7 @@ function prefetchSoon() { clearTimeout(APP._pf); APP._pf = setTimeout(prefetch, 
 function prefetch() {
   if (!APP.token || !APP.init) return;
   var t = APP.init.today, list = [['api_home', []], ['api_getSchedule', [APP.month]], ['api_listTickets', [APP.tkFilter === 'open' ? { open: true } : { month: APP.tkFilter }]],
-    ['api_getInspections', [APP.inspDate]], ['api_listSOP', []], ['api_attendance', [APP.pFrom || t, APP.pTo || t, APP.pWho || '']]];
+    ['api_getInspections', [APP.inspDate]], ['api_listSOP', []], ['api_attendance', [APP.pFrom || t, APP.pTo || t, APP.pWho || '']], ['api_listLeave', []]];
   if (isAdmin()) list.push(['api_listInspItems', []]);
   list = list.map(function (c) { return { fn: c[0], args: c[1], key: c[0] + JSON.stringify(c[1]) }; })
     .filter(function (c) { return !CACHE[c.key] && !WAIT[c.key] && !COLD[c.key]; });
@@ -527,7 +534,7 @@ function pwSave() {
   if ($('pwN').value !== $('pwN2').value) return toast('兩次新密碼不一樣', true);
   api('api_changePassword', $('pwO').value, $('pwN').value).then(function () { APP.init.me.mustChange = false; closeModal(); toast('密碼已更新'); });
 }
-var PAGES = [['home', '首頁'], ['punch', '打卡'], ['schedule', '班表'], ['tickets', '叫修'], ['insp', '巡檢'], ['sop', 'SOP'], ['admin', '管理']];
+var PAGES = [['home', '首頁'], ['punch', '打卡'], ['schedule', '排班'], ['tickets', '叫修'], ['insp', '巡檢'], ['sop', 'SOP'], ['admin', '管理']];
 var ICONS = { // 手機底部選單圖示（線條）
   home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
   punch: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -558,7 +565,7 @@ var PAGE_FN = { home: function () { pageHome(); }, punch: function () { pagePunc
 function pageHome() {
   api('api_home').then(function (h) {
     var open = h.tickets, over = open.filter(function (t) { return t.replyOver || t.fixOver; });
-    renderNav({ tickets: open.length || '', sop: h.unread.length || '', insp: h.insp['每日'].done ? '' : '!' });
+    renderNav({ schedule: h.pendingLeave || '', tickets: open.length || '', sop: h.unread.length || '', insp: h.insp['每日'].done ? '' : '!' });
     var hr = Number(nowStr().slice(11, 13)), hi = hr < 11 ? '早安' : hr < 18 ? '午安' : '晚安';
     var html = '<div class="hello"><b>' + hi + '，' + esc(APP.init.me.name) + '</b><span class="muted">' + Number(h.today.slice(5, 7)) + ' 月 ' + Number(h.today.slice(8)) + ' 日 星期' + WD[wdOf(h.today)] + '</span></div>';
     html += punchCard(h.punch, h.today);
@@ -567,6 +574,7 @@ function pageHome() {
     var item = function (cls, text, js) { todo.push('<div class="todo" onclick="' + js + '"><span class="ic ' + cls + '"></span><span class="tx">' + text + '</span><span class="go">›</span></div>'); };
     if (h.leave && h.leave.sched && !h.leave.confirmed) item('', '登記 ' + Number(h.leave.month.slice(5)) + ' 月不能上班的日子<div class="muted">' + md(h.leave.start) + '～' + md(h.leave.end) + ' 登記中</div>', 'APP.month=\'' + h.leave.month + '\';go(\'schedule\')');
     if (h.plan && h.plan.status !== '已發布') item('p', '確認並發布 ' + Number(h.plan.month.slice(5)) + ' 月班表<div class="muted">' + (h.plan.status === '草稿' ? '系統已預排' : '尚未排班') + (h.plan.notYet.length ? '・未登記：' + h.plan.notYet.map(esc).join('、') : '') + '</div>', 'APP.month=\'' + h.plan.month + '\';go(\'schedule\')');
+    if (h.pendingLeave) item('p', h.pendingLeave + ' 筆請假待核可', 'APP.schSub=\'leave\';go(\'schedule\')');
     if (open.length) item(over.length ? 'bad' : '', open.length + ' 件叫修未結案' + (over.length ? '<div class="muted" style="color:var(--bad)">' + over.length + ' 件已逾期</div>' : ''), 'go(\'tickets\')');
     var undone = ['每日', '每週', '每月', '每季'].filter(function (f) { return !h.insp[f].done; });
     if (undone.length) item('', undone.join('、') + '巡檢未完成', 'go(\'insp\')');
@@ -588,10 +596,11 @@ function punchCard(p, today) {
     '<div class="punch"><button class="in' + (m.in ? ' done' : '') + '" onclick="punchForm(\'上班\')">上班<small>' + (m.in ? '✓ ' + esc(m.in) : '尚未打卡') + '</small></button>' +
     '<button class="out' + (m.out ? ' done' : '') + '" onclick="punchForm(\'下班\')">下班<small>' + (m.out ? '✓ ' + esc(m.out) : '尚未打卡') + '</small></button></div>' +
     (m.note ? '<div class="muted" style="margin-top:8px">' + esc(m.note) + '</div>' : '');
-  if (p && p.duty && p.duty.name !== APP.init.me.name) {
-    var d = p.duty.rec || {};
-    html += '<div class="muted" style="margin-top:10px">今天值班 ' + esc(p.duty.name) + '：上班 ' + esc(d.in || '未打卡') + '・下班 ' + esc(d.out || '未打卡') + '</div>';
-  }
+  ((p && p.duties) || []).forEach(function (x) {
+    if (x.email === APP.init.me.email) return;
+    var d = x.rec || {};
+    html += '<div class="muted" style="margin-top:10px">今天值班 ' + esc(x.name) + '：上班 ' + esc(d.in || '未打卡') + '・下班 ' + esc(d.out || '未打卡') + '</div>';
+  });
   return html + '</div>';
 }
 function punchForm(type) {
@@ -732,7 +741,26 @@ function exportAttendance() {
 }
 
 /* ---------- 班表 ---------- */
+function schTabs() {
+  var n = APP.badges && APP.badges.schedule;
+  return '<div class="sub"><button class="' + (APP.schSub === 'plan' ? 'on' : '') + '" onclick="APP.schSub=\'plan\';pageSchedule()">排班</button>' +
+    '<button class="' + (APP.schSub === 'leave' ? 'on' : '') + '" onclick="APP.schSub=\'leave\';pageSchedule()">請假' + (n && isAdmin() ? ' <span class="tag bad">' + n + '</span>' : '') + '</button></div>';
+}
+/** 頁面最上方：清楚說明現在這個畫面在做什麼 */
+function schNotice(d, confirmed, myDays) {
+  var w = d.window, mm = Number(d.month.slice(5)) + ' 月';
+  if (isAdmin()) {
+    if (d.status === '已發布') return '<div class="notice ok"><b>' + mm + '班表已發布</b>點日期可以指派當天上班的人，一天可選多人；修改後會寄異動通知。</div>';
+    return '<div class="notice"><b>正在排 ' + mm + '的班</b>點日期指派當天上班的人，一天可選多人。排好後按「發布」，駐點人員才看得到。</div>';
+  }
+  if (d.status === '已發布') return '<div class="notice ok"><b>' + mm + '正式班表</b>' + (myDays.length ? '你這個月上班 ' + myDays.length + ' 天（藍框）。' : '你這個月沒有排班。') + '要休假請到上方「請假」，或直接點日期申請。</div>';
+  if (w.open) return confirmed
+    ? '<div class="notice ok"><b>' + mm + '排班登記：你已回覆</b>截止前還可以改。班表由主管排好發布後，會寄信通知你。</div>'
+    : '<div class="notice warn"><b>現在要排 ' + mm + '的班，請你登記</b>請在 ' + md(w.end) + ' 前點下面行事曆中「不能上班」的日子，再按下面的按鈕。<div style="margin-top:8px"><button class="btn p" onclick="confirmMonth()">' + (d.unavail.some(function (u) { return u.email === APP.init.me.email; }) ? '我登記好了' : '我都可以，聽安排') + '</button></div></div>';
+  return '<div class="notice"><b>' + mm + '班表排班中</b>' + (d.today < w.start ? md(w.start) + ' 開放登記不能上班的日子。' : '主管正在排班，發布後會寄信通知你。') + '</div>';
+}
 function pageSchedule() {
+  if (APP.schSub === 'leave') return pageLeave();
   api('api_getSchedule', APP.month).then(function (d) {
     APP.sch = d; drawSchedule();
     if (d.auto === 'new') toast('系統已依大家登記的日子預排好 ' + d.month + ' 班表，可直接調整後發布');
@@ -747,7 +775,10 @@ function drawSchedule() {
   var confirmed = d.confirms.some(function (c) { return c.email === me.email; });
   var stTag2 = { '已發布': 'ok', '草稿': 'warn', '未排班': '' }[d.status];
   var w = d.window;
-  var html = '<div class="card"><h2>' +
+  var myDays = d.days.filter(function (x) { return x.people.some(function (p) { return p.email === me.email; }); });
+  var html = schTabs() + schNotice(d, confirmed, myDays);
+  if (!admin && d.openMonth && d.openMonth !== d.month) html += '<div class="notice warn"><b>' + Number(d.openMonth.slice(5)) + ' 月排班登記中</b><button class="btn sm p" style="margin-top:6px" onclick="APP.month=\'' + d.openMonth + '\';pageSchedule()">前往登記</button></div>';
+  html += '<div class="card"><h2>' +
     '<button class="btn sm ghost" onclick="APP.month=shiftMonth(APP.month,-1);pageSchedule()">‹</button>' +
     '<span style="font-size:17px">' + Number(d.month.slice(0, 4)) + ' 年 ' + Number(d.month.slice(5)) + ' 月</span>' +
     '<button class="btn sm ghost" onclick="APP.month=shiftMonth(APP.month,1);pageSchedule()">›</button>' +
@@ -756,7 +787,7 @@ function drawSchedule() {
     (d.visible ? '<button class="btn sm ghost" onclick="printSchedule()">列印</button>' : '') +
     (admin ? '<span class="row"><button class="btn sm" onclick="autoSchedule()">自動排班</button><button class="btn sm p" onclick="publishSchedule()">' + (d.status === '已發布' ? '重新發布' : '發布') + '</button></span>' : '') + '</h2>';
   var conflicts = admin ? d.days.filter(function (x) { return x.conflict; }).length : 0;
-  if (conflicts) html += '<div class="muted" style="color:var(--bad);margin-bottom:8px">有 ' + conflicts + ' 天排到的人那天不能上班，請點日期調整</div>';
+  if (conflicts) html += '<div class="muted" style="color:var(--bad);margin-bottom:8px">有 ' + conflicts + ' 天排到的人那天不能上班或請假，請點日期調整</div>';
   if (!admin && !d.visible) html += '<div class="muted" style="margin-bottom:8px">本月班表還沒發布</div>';
   html += '<div class="cal">' + WD.slice(1).map(function (w, i) { return '<div class="hd">' + w + '</div>'; }).join('');
   var first = wdOf(d.days[0].date);
@@ -770,16 +801,18 @@ function drawSchedule() {
     if (mine) cls.push('mineoff');
     if (d.visible && !x.email && d.status !== '未排班') cls.push('gap');
     if (x.conflict) cls.push('gap');
+    if (x.people.some(function (p) { return p.email === me.email; })) cls.push('mine');
     html += '<div class="' + cls.join(' ') + '"' + (x.conflict ? ' style="background:var(--bad-weak)"' : '') + ' onclick="dayClick(\'' + x.date + '\')">' +
       '<span class="n">' + Number(x.date.slice(8)) + '</span>' + (x.manual && admin ? '<span class="mk" title="手動指定"></span>' : '') +
-      (x.email ? '<span class="who" style="background:' + colorOf(x.email) + '1c;color:' + colorOf(x.email) + '">' + esc(x.name) + '</span>' : (d.visible && d.status !== '未排班' ? '<span class="off">缺人</span>' : '')) +
-      offs.map(function (u) { return '<span class="off">✕ ' + esc(u.name) + '</span>'; }).join('') + '</div>';
+      (x.people.length ? x.people.map(function (p) { return '<span class="who" style="background:' + colorOf(p.email) + '1c;color:' + colorOf(p.email) + '">' + esc(p.name) + '</span>'; }).join('') : (d.visible && d.status !== '未排班' ? '<span class="off">缺人</span>' : '')) +
+      offs.map(function (u) { return '<span class="off">✕ ' + esc(u.name) + '</span>'; }).join('') +
+      d.leaves.filter(function (l) { return l.start <= x.date && l.end >= x.date; }).map(function (l) { return '<span class="off">' + (l.status === '已核可' ? '假 ' : '待核 ') + esc(l.name) + '</span>'; }).join('') + '</div>';
   });
-  html += '</div><div class="legend">' + (admin ? '<span>點日期指定值班人員</span>' : '<span>點日期登記／取消「這天不能上班」</span>') +
+  html += '</div><div class="legend">' + (admin ? '<span>點日期指派上班人員（可多人）</span><span>藍框＝我上班</span>' : d.status === '已發布' ? '<span>藍框＝你上班的日子</span><span>點日期申請請假</span>' : '<span>點日期登記／取消「這天不能上班」</span>') +
     '<span><i style="background:var(--bad-weak)"></i>我不能上班</span><span style="color:var(--bad)">✕ 不能上班的人</span>' + (admin ? '<span><i style="background:var(--muted);border-radius:50%;width:6px;height:6px"></i>手動指定</span>' : '') + '</div></div>';
 
   // 登記：一張卡片看完
-  html += '<div class="card"><h2>' + Number(d.month.slice(5)) + ' 月登記<span class="muted" style="font-weight:normal">' + md(w.start) + '～' + md(w.end) + (w.open ? '・登記中' : (d.today > w.end ? '・已截止' : '・未開始')) + '</span>' +
+  html += '<div class="card"><h2>' + Number(d.month.slice(5)) + ' 月排班登記<span class="muted" style="font-weight:normal">' + md(w.start) + '～' + md(w.end) + (w.open ? '・登記中' : (d.today > w.end ? '・已截止' : '・未開始')) + '</span>' +
     '<span class="sp"></span>' + (admin ? '<button class="btn sm ghost" onclick="windowForm()">設定期間</button>' : '') + '</h2>';
   if (APP.init.me.sched) {
     html += '<div class="row" style="margin-bottom:12px"><span>我不能上班：' + (myOff.length ? myOff.map(function (u) { return md(u.date); }).join('、') : '<span class="muted">無</span>') + '</span><span class="sp"></span>' +
@@ -796,12 +829,13 @@ function drawSchedule() {
 function dayClick(date) {
   var d = APP.sch, me = APP.init.me;
   if (isAdmin()) return shiftModal(date);
-  if (date < d.today) return toast('不能登記今天以前的日期', true);
+  if (date < d.today) return toast('不能選今天以前的日期', true);
+  if (d.status === '已發布') return leaveForm(date); // 班表已發布：要休假走請假
   var mine = d.unavail.some(function (u) { return u.date === date && u.email === me.email; });
   if (mine) {
     api('api_toggleUnavail', date, '').then(function () { toast('已取消 ' + md(date) + ' 的登記'); pageSchedule(); });
   } else {
-    modal('<h3>' + md(date) + '（' + WD[wdOf(date)] + '）不能上班<button class="x" onclick="closeModal()">×</button></h3>' +
+    modal('<h3>排班登記：' + md(date) + '（' + WD[wdOf(date)] + '）不能上班<button class="x" onclick="closeModal()">×</button></h3>' +
       '<label class="f">原因（選填，例如：返台、看醫生）</label><input id="unReason" class="full" maxlength="50">' +
       '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="saveUnavail(\'' + date + '\')">登記</button></div>');
     setTimeout(function () { $('unReason').focus(); }, 50);
@@ -820,17 +854,94 @@ function confirmMonth() {
 function shiftModal(date) {
   var d = APP.sch, x = d.days.filter(function (y) { return y.date === date; })[0];
   var offs = d.unavail.filter(function (u) { return u.date === date; });
-  var opts = '<option value="">（無人／缺人）</option>' + d.staff.map(function (p) {
-    var off = offs.filter(function (u) { return u.email === p.email; })[0];
-    return '<option value="' + esc(p.email) + '"' + (x.email === p.email ? ' selected' : '') + '>' + esc(p.name) + (off ? '（不能上班' + (off.reason ? '：' + esc(off.reason) : '') + '）' : '') + '・本月 ' + (d.stats[p.email] || 0) + ' 天</option>';
+  var lvs = d.leaves.filter(function (l) { return l.start <= date && l.end >= date; });
+  var cand = APP.init.people.filter(function (p) { return p.active || x.people.some(function (q) { return q.email === p.email; }); })
+    .sort(function (a, b) { return (b.sched ? 1 : 0) - (a.sched ? 1 : 0); });
+  var opts = cand.map(function (p) {
+    var off = offs.filter(function (u) { return u.email === p.email; })[0], lv = lvs.filter(function (l) { return l.email === p.email; })[0];
+    var on = x.people.some(function (q) { return q.email === p.email; });
+    return '<label class="lvbox"><input type="checkbox" name="shWho" value="' + esc(p.email) + '"' + (on ? ' checked' : '') + '><div><b>' + esc(p.name) + '</b>' +
+      (lv ? ' <span class="tag bad">' + (lv.status === '已核可' ? '請假' : '請假待核') + '</span>' : '') + (off ? ' <span class="tag warn">不能上班' + (off.reason ? '：' + esc(off.reason) : '') + '</span>' : '') +
+      '<div class="muted">本月已排 ' + (d.stats[p.email] || 0) + ' 天</div></div></label>';
   }).join('');
   var me = APP.init.me, myOff = offs.some(function (u) { return u.email === me.email; });
-  modal('<h3>' + date + '（' + WD[x.wd] + '）值班<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<label class="f">值班人員</label><select id="shWho" class="full">' + opts + '</select>' +
+  modal('<h3>指派 ' + md(date) + '（' + WD[x.wd] + '）上班人員<button class="x" onclick="closeModal()">×</button></h3>' +
+    '<div class="muted">可以勾選多人；都不勾代表這天沒有人上班。</div>' + opts +
     '<label class="f">備註</label><input id="shNote" class="full" value="' + esc(x.note) + '">' +
     (d.status === '已發布' ? '<div class="muted" style="margin-top:8px">本月已發布，修改後會寄「班表異動」通知給相關人員。</div>' : '') +
     '<div class="foot">' + (me.sched && date >= d.today ? '<button class="btn" style="margin-right:auto" onclick="adminSelfOff(\'' + date + '\',' + myOff + ')">' + (myOff ? '取消我這天不能上班' : '登記我這天不能上班') + '</button>' : '') +
     '<button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="saveShift(\'' + date + '\')">儲存</button></div>');
+}
+/* ---------- 請假 ---------- */
+var LEAVE_TAG = { '待核可': 'warn', '已核可': 'ok', '已駁回': 'bad', '已取消': '' };
+function leaveRange(l) { return l.start === l.end ? md(l.start) + '（' + WD[wdOf(l.start)] + '）' : md(l.start) + '～' + md(l.end); }
+function pageLeave() {
+  api('api_listLeave').then(function (list) { APP.leaves = list; drawLeave(); });
+}
+function drawLeave() {
+  var admin = isAdmin(), list = APP.leaves, me = APP.init.me;
+  var pending = admin ? list.filter(function (l) { return l.status === '待核可'; }) : [];
+  var shown = list.filter(function (l) { return (!APP.leaveWho || l.email === APP.leaveWho) && (!APP.leaveSt || l.status === APP.leaveSt); });
+  var row = function (l, review) {
+    var late = l.advance < 7;
+    return '<div class="lv"><div class="row"><b>' + (admin ? esc(l.name) + '・' : '') + leaveRange(l) + '</b><span class="muted">共 ' + l.days + ' 天</span><span class="tag ' + LEAVE_TAG[l.status] + '">' + esc(l.status) + '</span>' +
+      (late ? '<span class="tag warn">前 ' + l.advance + ' 天才申請</span>' : '') + '<span class="sp"></span>' +
+      (review ? '<button class="btn sm" onclick="leaveReject(\'' + l.id + '\')">駁回</button><button class="btn sm ok" onclick="leaveApprove(\'' + l.id + '\')">核可</button>' :
+        (l.status === '待核可' && l.email === me.email) || (admin && l.status === '已核可') ? '<button class="btn sm ghost" onclick="leaveCancel(\'' + l.id + '\',\'' + l.status + '\')">取消</button>' : '') + '</div>' +
+      '<div style="margin-top:4px">原因：' + esc(l.reason) + '</div>' +
+      '<div class="muted">申請 ' + esc(l.at) + (l.by ? '・' + esc(l.by) + ' ' + esc(l.byAt) + ' ' + esc(l.status) : '') + (l.note ? '・說明：' + esc(l.note) : '') + '</div></div>';
+  };
+  var html = schTabs() + '<div class="notice"><b>請假</b>請盡量在 <b style="display:inline;font-size:inherit">1 週前</b>提出並寫原因，由管理員或主管核可後才算請假成功。<div style="margin-top:8px"><button class="btn p" onclick="leaveForm()">申請請假</button></div></div>';
+  if (pending.length) html += '<div class="card"><h2>待核可<span class="tag bad">' + pending.length + '</span></h2>' + pending.map(function (l) { return row(l, true); }).join('') + '</div>';
+  html += '<div class="card"><h2>' + (admin ? '全部請假紀錄' : '我的請假紀錄') + '</h2>';
+  if (admin) {
+    var names = []; list.forEach(function (l) { if (!names.some(function (n) { return n.email === l.email; })) names.push(l); });
+    html += '<div class="filters" style="margin-bottom:8px"><select onchange="APP.leaveWho=this.value;drawLeave()"><option value="">全部人員</option>' + names.map(function (n) { return '<option value="' + esc(n.email) + '"' + (APP.leaveWho === n.email ? ' selected' : '') + '>' + esc(n.name) + '</option>'; }).join('') + '</select>' +
+      '<select onchange="APP.leaveSt=this.value;drawLeave()"><option value="">全部狀態</option>' + Object.keys(LEAVE_TAG).map(function (k) { return '<option' + (APP.leaveSt === k ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div>';
+  }
+  html += (shown.length ? shown.map(function (l) { return row(l, false); }).join('') : '<div class="empty">沒有請假紀錄</div>') + '</div>';
+  $('main').innerHTML = html;
+}
+function leaveForm(date) {
+  var t = APP.init.today, d = date || addDays(t, 7);
+  modal('<h3>申請請假<button class="x" onclick="closeModal()">×</button></h3>' +
+    '<div class="row"><div style="flex:1;min-width:140px"><label class="f">開始日期 *</label><input type="date" id="lvS" class="full" min="' + t + '" value="' + d + '" onchange="if($(\'lvE\').value<this.value)$(\'lvE\').value=this.value;leaveHint()"></div>' +
+    '<div style="flex:1;min-width:140px"><label class="f">結束日期 *</label><input type="date" id="lvE" class="full" min="' + t + '" value="' + d + '" onchange="leaveHint()"></div></div>' +
+    '<div id="lvHint" style="margin-top:10px"></div>' +
+    '<label class="f">請假原因 *</label><textarea id="lvR" maxlength="300"></textarea>' +
+    '<div class="muted" style="margin-top:6px">送出後要等管理員或主管核可，才算請假成功。</div>' +
+    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" id="lvGo" onclick="leaveSend()">送出申請</button></div>');
+  leaveHint();
+}
+function leaveHint() {
+  var s = $('lvS').value, e = $('lvE').value;
+  if (!s || !e) return;
+  var dayN = function (x) { return parseT(x + ' 00:00'); };
+  var left = Math.round((dayN(s) - dayN(APP.init.today)) / 86400000), n = Math.round((dayN(e) - dayN(s)) / 86400000) + 1;
+  $('lvHint').innerHTML = '<div class="muted">共 ' + Math.max(n, 0) + ' 天</div>' + (left < 7 && left >= 0 ? '<div class="notice warn" style="margin:6px 0 0;padding:8px 12px">距離請假日只剩 ' + left + ' 天，未滿 1 週。還是可以送出，但請盡早告知主管。</div>' : '');
+}
+function leaveSend() {
+  if (!$('lvR').value.trim()) return toast('請填寫請假原因', true);
+  $('lvGo').disabled = true;
+  api('api_applyLeave', { start: $('lvS').value, end: $('lvE').value, reason: $('lvR').value }).then(function () {
+    closeModal(); toast('已送出，等待核可'); APP.schSub = 'leave'; pageSchedule();
+  }).catch(function () { if ($('lvGo')) $('lvGo').disabled = false; });
+}
+function leaveApprove(id) {
+  if (!confirm('確定核可這筆請假？這位人員在這段日期的班會從班表移除。')) return;
+  api('api_reviewLeave', id, 'approve', '').then(function (r) {
+    toast(r.gaps.length ? '已核可。' + r.gaps.map(md).join('、') + ' 現在沒有人上班，請到「排班」指派' : '已核可', !!r.gaps.length);
+    pageLeave();
+  });
+}
+function leaveReject(id) {
+  modal('<h3>駁回請假<button class="x" onclick="closeModal()">×</button></h3><label class="f">說明（會寄給申請人）</label><textarea id="lvN" maxlength="300"></textarea>' +
+    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn bad" onclick="leaveRejectGo(\'' + id + '\')">確定駁回</button></div>');
+}
+function leaveRejectGo(id) { api('api_reviewLeave', id, 'reject', $('lvN').value).then(function () { closeModal(); toast('已駁回'); pageLeave(); }); }
+function leaveCancel(id, st) {
+  if (!confirm(st === '已核可' ? '確定取消這筆已核可的請假？原本的班不會自動排回，請到「排班」重新指派。' : '確定取消這筆請假申請？')) return;
+  api('api_cancelLeave', id).then(function () { toast('已取消'); pageLeave(); });
 }
 function adminSelfOff(date, on) {
   var reason = on ? '' : (prompt('原因（選填）') || '');
@@ -848,7 +959,8 @@ function windowSave() {
   api('api_setWindow', APP.sch.month, val('wS'), val('wE')).then(function () { closeModal(); toast('已設定登記期間'); pageSchedule(); });
 }
 function saveShift(date) {
-  api('api_setShift', date, $('shWho').value, val('shNote')).then(function () { closeModal(); toast('已更新'); pageSchedule(); });
+  var who = Array.prototype.map.call(document.querySelectorAll('input[name=shWho]:checked'), function (c) { return c.value; });
+  api('api_setShift', date, who, val('shNote')).then(function () { closeModal(); toast('已更新'); pageSchedule(); });
 }
 function autoSchedule() {
   var d = APP.sch;
@@ -870,7 +982,7 @@ function printSchedule() {
   var d = APP.sch, s = APP.init.settings;
   var rows = d.days.map(function (x) { return '<tr><td>' + md(x.date) + '</td><td>' + WD[x.wd] + '</td><td>' + esc(x.name || '（缺人）') + '</td><td>' + esc(x.note) + '</td></tr>'; }).join('');
   var stat = d.staff.map(function (p) { return esc(p.name) + ' ' + (d.stats[p.email] || 0) + ' 天'; }).join('　');
-  printHtml('<h2>' + esc(s['系統名稱']) + '　' + esc(d.month) + ' 駐點班表</h2><p>上班時間：' + esc(s['上班時間']) + '（每日一人）　狀態：' + esc(d.status) + '</p>' +
+  printHtml('<h2>' + esc(s['系統名稱']) + '　' + esc(d.month) + ' 駐點班表</h2><p>上班時間：' + esc(s['上班時間']) + '　狀態：' + esc(d.status) + '</p>' +
     '<table><tr><th>日期</th><th>星期</th><th>值班</th><th>備註</th></tr>' + rows + '</table><p>' + stat + '</p>');
 }
 
@@ -1241,7 +1353,7 @@ function pageAdmin() {
   $('main').innerHTML = '<div class="sub">' + subs.map(function (s) { return '<button class="' + (APP.adminSub === s[0] ? 'on' : '') + '" onclick="APP.adminSub=\'' + s[0] + '\';pageAdmin()">' + s[1] + '</button>'; }).join('') + '</div><div id="adBody">' + LOADER + '</div>';
   ({ people: adPeople, settings: adSettings, sop: adSop, items: adItems, report: adReport })[APP.adminSub]();
 }
-var ROLE_DESC = { '管理員': '全部功能，含帳號管理', '主管': '排班、發布、SOP 編輯、月報、設定（不能管帳號）', '駐點': '登記不能上班日、巡檢、叫修、讀 SOP' };
+var ROLE_DESC = { '管理員': '全部功能，含帳號管理', '主管': '排班、核可請假、發布、SOP 編輯、月報、設定（不能管帳號）', '駐點': '登記不能上班日、請假、巡檢、叫修、讀 SOP' };
 function adPeople() {
   var ps = APP.init.people, owner = APP.init.me.isOwner;
   $('adBody').innerHTML = '<div class="card"><h2>帳號<span class="sp"></span>' + (owner ? '<button class="btn p" onclick="personForm()">新增帳號</button>' : '') + '</h2>' +

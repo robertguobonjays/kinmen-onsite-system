@@ -10,7 +10,7 @@ function expectErr(fn, msg, re) {
 // ---------- setup ----------
 setNow('2026-10-28 09:05');
 const msg = G.setup();
-ok(Object.keys(sheets).length === 15, 'sheets created');
+ok(Object.keys(sheets).length === 16, 'sheets created');
 ok(G.readTable_('巡檢項目').length === 20 && G.readTable_('SOP').length === 14, 'seeds');
 ok(/02-7733-5686/.test(G.readTable_('SOP')[1]['內容']), 'hotline in SOP');
 const adminPw = (msg.match(/admin ／ (\w+)/) || [])[1];

@@ -37,7 +37,7 @@ const BLOB = 'https://abc.public.blob.vercel-storage.com/打卡照片/';
   setNow('2026-10-01 17:40'); G.api_punch(TS, '下班', BLOB + 'out1b.jpg', '', '', ''); // 最晚的下班為準
   let home = G.api_home(TS);
   ok(home.punch.mine.in === '07:50' && home.punch.mine.out === '17:40' && home.punch.mine.note === '', 'home punch summary ' + JSON.stringify(home.punch.mine));
-  ok(G.api_home(TA).punch.duty.name === '洪雅玟', 'admin sees duty punch');
+  ok(G.api_home(TA).punch.duties[0].name === '洪雅玟', 'admin sees duty punch');
   setNow('2026-10-02 08:12'); G.api_punch(TS, '上班', BLOB + 'in2.jpg', BLOB + 'in2_t.jpg', '', '船班延誤');
   setNow('2026-10-02 17:00'); G.api_punch(TS, '下班', BLOB + 'out2.jpg', BLOB + 'out2_t.jpg', '', '');
   let s2 = G.api_attendance(TS, '2026-10-02', '2026-10-02', '').summary[0];
