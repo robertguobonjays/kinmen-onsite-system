@@ -115,6 +115,15 @@ async function login(w, a, p) {
     console.log('  logout ->', !!w.document.getElementById('lgA'));
   }
 
+  // 載入失敗不會卡在載入畫面
+  w = open('Index.html');
+  await login(w, 'hua', 'pass222');
+  w.document.getElementById('main').innerHTML = w.LOADER;
+  w.api('api_attendance', '2026-11-30', '2026-11-01', '').catch(() => { });
+  await wait(40);
+  console.log('load failed retry:', /重新載入/.test(w.document.getElementById('main').textContent), '| bar:', w.document.getElementById('loading').style.display);
+  if (!/重新載入/.test(w.document.getElementById('main').textContent) || w.document.getElementById('loading').style.display !== 'none') errors.push('load fail UI');
+
   // 記住登入：localStorage 有 token 直接進入
   w = open('Index.html');
   await login(w, 'hua', 'pass222');
