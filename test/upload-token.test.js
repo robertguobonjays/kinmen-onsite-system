@@ -13,7 +13,7 @@ const call = body => new Promise(resolve => {
 
 (async () => {
   backend.call = async (fn, args) => {
-    if (fn !== 'api_listPeople') throw new Error('wrong fn');
+    if (fn !== 'api_checkAdmin') throw new Error('wrong fn');
     if (args[0] !== 'boss') throw new Error('這個功能只有主管可以使用。');
     return [];
   };

@@ -10,7 +10,7 @@ function expectErr(fn, msg, re) {
 // ---------- setup ----------
 setNow('2026-10-28 09:05');
 const msg = G.setup();
-ok(Object.keys(sheets).length === 16, 'sheets created');
+ok(Object.keys(sheets).length === 21, 'sheets created');
 ok(G.readTable_('巡檢項目').length === 20 && G.readTable_('SOP').length === 14, 'seeds');
 ok(/02-7733-5686/.test(G.readTable_('SOP')[1]['內容']), 'hotline in SOP');
 const adminPw = (msg.match(/admin ／ (\w+)/) || [])[1];
@@ -18,7 +18,7 @@ ok(!!adminPw, 'temp password shown');
 ok(folders['1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1'] && folders['1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1'].subs['SOP文件'], 'subfolders in shared folder');
 G.setup(); // 再跑一次不重複、不重設密碼
 ok(G.readTable_('SOP').length === 14 && G.readTable_('人員').length === 1, 'idempotent setup');
-ok(G.readTable_('設定').length === 13, 'settings count ' + G.readTable_('設定').length);
+ok(G.readTable_('設定').length === 16, 'settings count ' + G.readTable_('設定').length);
 
 // ---------- 登入 ----------
 expectErr(() => G.api_init('x'), 'no token', /NEED_LOGIN/);
@@ -93,40 +93,37 @@ rem = mails.filter(m => /請登記 2026-11/.test(m.subject));
 ok(rem.length === 1 && rem[0].to === 'boss@corp.com' && /最後一天/.test(rem[0].subject), 'only admin left, last day');
 ok(G.readTable_('填寫確認').find(x => x['Email'] === 'hua@gmail.com')['說明'] === '不能上班 2 天', 'confirm note');
 
-// ---------- 截止隔天：系統預排並通知 ----------
+// ---------- 截止隔天：通知主管排班，不自動排 ----------
 setNow('2026-10-31 09:01');
 mails.length = 0; G.hourlyJob();
-const pre = mails.filter(m => /已由系統預排/.test(m.subject));
-ok(pre.length === 1 && /未登記（視為都可以）：管理員/.test(pre[0].htmlBody), 'preschedule mail');
-ok(/缺人：11\/3/.test(pre[0].htmlBody) === false, 'admin is available on 11/3 so no gap');
+const pre = mails.filter(m => /時段登記已截止/.test(m.subject));
+ok(pre.length === 1 && /未回覆：管理員/.test(pre[0].htmlBody), 'deadline mail');
 mails.length = 0; G.hourlyJob(); ok(mails.length === 0, 'once per hour');
 setNow('2026-11-01 09:01'); mails.length = 0; G.hourlyJob();
-ok(!mails.some(m => /2026-11 班表已由系統預排/.test(m.subject)), 'preschedule mail only once');
+ok(!mails.some(m => /2026-11 時段登記已截止/.test(m.subject)), 'deadline mail only once');
 sch = G.api_getSchedule(TA, '2026-11');
-ok(sch.status === '草稿' && sch.auto === '' && sch.days.every(d => d.email), 'draft visible to admin');
+ok(sch.status === '未排班' && sch.days.every(d => !d.email), 'nothing planned until admin decides');
+// 管理員按「依時段自動帶入」才產生草稿
+G.api_autoSchedule(TA, '2026-11', true);
+sch = G.api_getSchedule(TA, '2026-11');
+ok(sch.status === '草稿' && sch.days.every(d => d.email), 'draft visible to admin');
 ok(sch.days.find(d => d.date === '2026-11-03').name === '管理員', '11/03 only admin available');
 ok(!sch.days.some(d => d.conflict), 'no conflicts');
 ok(G.api_getSchedule(TS, '2026-11').days.every(d => !d.email), 'staff cannot see draft');
 
-// 草稿期間有人改登記 → 主管打開時自動重排（保留手動）
+// 重新帶入時保留手動指派
 setNow('2026-11-01 10:00');
 G.api_setShift(TA, '2026-11-20', 'a@corp.com', '指定');
 const hua15 = sch.days.find(d => d.email === 'hua@gmail.com' && d.date > '2026-11-05' && d.date !== '2026-11-20');
-setNow('2026-11-01 10:01');
 G.api_toggleUnavail(TB2, hua15.date, '臨時有事');
-setNow('2026-11-01 10:02');
+G.api_autoSchedule(TA, '2026-11', true);
 sch = G.api_getSchedule(TA, '2026-11');
-ok(sch.auto === 'redo', 'auto redo');
 ok(sch.days.find(d => d.date === hua15.date).email !== 'hua@gmail.com', 'reassigned after new unavail');
 ok(sch.days.find(d => d.date === '2026-11-20').email === 'a@corp.com', 'manual kept on redo');
-ok(G.api_getSchedule(TA, '2026-11').auto === '', 'no redo when unchanged');
 let seq = sch.days.map(d => d.email), maxRun = 0, run = 0, last = '';
 seq.forEach(e => { run = e && e === last ? run + 1 : 1; last = e; maxRun = Math.max(maxRun, run); });
 ok(maxRun <= 6, 'max run ' + maxRun);
-console.log('11月預排：', sch.days.map(d => d.date.slice(8) + d.name).join(' '));
-// 未排班月份主管一打開就預排
-sch = G.api_getSchedule(TA, '2026-12');
-ok(sch.auto === 'new' && sch.status === '草稿' && sch.days.every(d => d.email), 'open unscheduled month auto plans');
+console.log('11月草稿：', sch.days.map(d => d.date.slice(8) + d.name).join(' '));
 // 手動指定衝突顯示
 G.api_setShift(TA, '2026-11-04', 'a@corp.com', '');
 ok(G.api_getSchedule(TA, '2026-11').days.find(d => d.date === '2026-11-04').conflict, 'conflict flagged');
@@ -147,7 +144,7 @@ expectErr(() => G.api_toggleUnavail(TS, '2026-11-26', '', 'hua@gmail.com'), 'sta
 // ---------- 首頁 ----------
 setNow('2026-11-02 08:30');
 let home = G.api_home(TA);
-ok(home.plan && home.plan.month === '2026-12' && home.plan.status === '草稿', 'admin plan card');
+ok(home.plan && home.plan.month === '2026-12' && home.plan.status === '未排班', 'admin plan card');
 home = G.api_home(TS);
 ok(home.plan === null && home.unread.length === 7, 'staff home');
 

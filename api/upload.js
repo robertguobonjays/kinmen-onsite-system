@@ -23,15 +23,15 @@ module.exports = async (req, res) => {
       folder = '叫修照片';
     } else if (fn === 'api_uploadPhoto') {
       [, name, dataUrl] = args;
-      await backend.call('api_init', [args[0]]); // 檢查登入
+      await backend.call('api_checkSession', [args[0]]); // 檢查登入
       folder = '叫修照片';
     } else if (fn === 'api_uploadPunch') {
       [, name, dataUrl] = args;
-      await backend.call('api_init', [args[0]]); // 檢查登入
+      await backend.call('api_checkSession', [args[0]]); // 檢查登入
       folder = '打卡照片';
     } else if (fn === 'api_uploadFile') {
       [, name, dataUrl] = args;
-      await backend.call('api_listPeople', [args[0]]); // 檢查主管權限
+      await backend.call('api_checkAdmin', [args[0]]); // 檢查主管權限
       folder = 'SOP文件'; imageOnly = false;
     } else return res.status(400).json({ error: '不支援的功能' });
 

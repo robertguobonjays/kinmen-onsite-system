@@ -40,17 +40,17 @@
 <main id="main">
   <div class="card" id="hot">緊急狀況請直接打電話或 LINE：<b id="hotline">02-7733-5686</b></div>
   <div class="card" id="form">
-    <label class="f">您的姓名 <b>*</b></label><input type="text" id="rName" maxlength="30" autocomplete="name">
-    <label class="f">單位</label><input type="text" id="rUnit" maxlength="40" placeholder="例：浯江售票組">
-    <label class="f">聯絡電話</label><input type="tel" id="rPhone" maxlength="30">
+    <label class="f">哪個單位通報？ <b>*</b></label><select id="rUnit" onchange="unitPick()"><option value="">請選擇</option></select>
+    <label class="f">聯絡電話（選單位會自動帶出）</label><input type="tel" id="rPhone" maxlength="30">
     <label class="f">哪個設備或系統有問題？ <b>*</b></label><div class="chips" id="eqs"></div>
-    <label class="f">位置／編號</label><input type="text" id="rLoc" maxlength="60" placeholder="例：A2 櫃台、自助機 3 號、閘門 2">
-    <label class="f">發生什麼問題？ <b>*</b></label><textarea id="rSym" maxlength="1000" placeholder="看到什麼畫面、在哪個步驟、影響多少旅客"></textarea>
-    <label class="f">影響程度 <b>*</b></label>
-    <label class="opt"><input type="radio" name="imp" value="all"><div><b>完全不能售票或驗票</b><div class="muted">駐點人員會在 30 分鐘內回覆</div></div></label>
-    <label class="opt"><input type="radio" name="imp" value="part" checked><div><b>部分設備有問題，其他還能用</b><div class="muted">1 小時內回覆</div></div></label>
-    <label class="opt"><input type="radio" name="imp" value="later"><div><b>不急，可以排時間處理</b><div class="muted">2 小時內回覆</div></div></label>
-    <label class="f">照片（可多張，選填）</label><input type="file" id="rPh" accept="image/*" multiple>
+    <label class="f">故障原因 <b>*</b></label><div class="chips" id="cas"><span class="muted">請先選設備</span></div>
+    <textarea id="rSym" maxlength="1000" placeholder="請說明發生什麼問題" style="margin-top:8px;display:none"></textarea>
+    <label class="f">影響程度 <b>*</b></label><div id="imps"></div>
+    <details style="margin-top:14px"><summary class="muted" style="cursor:pointer">補充資料（位置、姓名、照片，都可以不填）</summary>
+      <label class="f">位置／編號</label><input type="text" id="rLoc" maxlength="60" placeholder="例：A2 櫃台、自助機 3 號、閘門 2">
+      <label class="f">您的姓名</label><input type="text" id="rName" maxlength="30" autocomplete="name">
+      <label class="f">照片（可多張）</label><input type="file" id="rPh" accept="image/*" multiple>
+    </details>
     <input type="text" id="rWeb" class="hp" tabindex="-1" autocomplete="off">
     <button class="btn" id="go" onclick="send()">送出報修</button>
     <div id="err"></div>
@@ -79,26 +79,54 @@ function compress(file) {
     fr.onerror = rej; fr.readAsDataURL(file);
   });
 }
+var INFO = null;
+function fmtMin(m) { return m >= 60 ? (m % 60 ? Math.floor(m / 60) + ' 小時 ' + (m % 60) + ' 分' : (m / 60) + ' 小時') : m + ' 分鐘'; }
+var IMPACT = [['all', '1', '完全不能售票或驗票'], ['part', '2', '部分設備有問題，其他還能用'], ['later', '3', '不急，可以排時間處理']];
 call('api_publicInfo').then(function (i) {
+  INFO = i;
   $('sub').textContent = i.name;
   $('hotline').textContent = i.hotline;
-  $('eqs').innerHTML = i.equip.map(function (e) { return '<label><input type="radio" name="eq" value="' + esc(e) + '"><span>' + esc(e) + '</span></label>'; }).join('');
+  $('eqs').innerHTML = i.equip.map(function (e) { return '<label><input type="radio" name="eq" value="' + esc(e) + '" onchange="causes()"><span>' + esc(e) + '</span></label>'; }).join('');
+  $('rUnit').innerHTML = '<option value="">請選擇</option>' + i.units.map(function (u) { return '<option value="' + esc(u.name) + '">' + esc(u.name) + '</option>'; }).join('');
+  $('imps').innerHTML = IMPACT.map(function (x) {
+    var s = i.sla[x[1]];
+    return '<label class="opt"><input type="radio" name="imp" value="' + x[0] + '"' + (x[0] === 'part' ? ' checked' : '') + '><div><b>' + x[2] + '</b><div class="muted">' + s.name + '：' + fmtMin(s.reply) + '內回覆、' + fmtMin(s.fix) + '內完修</div></div></label>';
+  }).join('');
 });
+function unitPick() {
+  var u = INFO.units.filter(function (x) { return x.name === $('rUnit').value; })[0];
+  $('rPhone').value = u ? u.phone : '';
+}
+function causes() {
+  var name = document.querySelector('input[name=eq]:checked').value;
+  var list = INFO.causes.filter(function (c) { return !c.equip.length || c.equip.indexOf(name) >= 0; }).map(function (c) { return c.name; });
+  $('cas').innerHTML = list.concat(['其他']).map(function (c) { return '<label><input type="radio" name="ca" value="' + esc(c) + '" onchange="causeOther()"><span>' + esc(c) + '</span></label>'; }).join('');
+  causeOther();
+}
+function causeOther() {
+  var c = document.querySelector('input[name=ca]:checked');
+  $('rSym').style.display = c && c.value === '其他' ? 'block' : 'none';
+}
+function promise(imp) {
+  var x = IMPACT.filter(function (a) { return imp && a[0] === imp.value; })[0], s = x && INFO.sla[x[1]];
+  return s ? '<div style="margin-top:10px"><b>' + s.name + '</b>：' + fmtMin(s.reply) + '內回覆、' + fmtMin(s.fix) + '內完修</div>' : '';
+}
 function send() {
   var eq = document.querySelector('input[name=eq]:checked'), imp = document.querySelector('input[name=imp]:checked');
   $('err').textContent = '';
-  if (!$('rName').value.trim()) return ($('err').textContent = '請填寫您的姓名');
+  var ca = document.querySelector('input[name=ca]:checked'), cause = ca ? ca.value : '';
+  if (!$('rUnit').value && !$('rName').value.trim()) return ($('err').textContent = '請選擇哪個單位通報');
   if (!eq) return ($('err').textContent = '請選擇哪個設備或系統有問題');
-  if (!$('rSym').value.trim()) return ($('err').textContent = '請描述發生什麼問題');
+  if ((!cause || cause === '其他') && !$('rSym').value.trim()) return ($('err').textContent = cause ? '請說明發生什麼問題' : '請選擇故障原因');
   $('go').disabled = true; $('go').textContent = '送出中…';
   var files = Array.prototype.slice.call($('rPh').files || []).slice(0, 5);
   files.reduce(function (p, f) {
     return p.then(function (ids) { return compress(f).then(function (d) { return call('api_publicUpload', f.name.replace(/\.\w+$/, '') + '.jpg', d); }).then(function (id) { ids.push(id); return ids; }); });
   }, Promise.resolve([])).then(function (ids) {
     return call('api_publicReport', { reporter: $('rName').value, unit: $('rUnit').value, phone: $('rPhone').value, equip: eq.value, loc: $('rLoc').value,
-      symptom: $('rSym').value, impact: imp ? imp.value : 'part', photos: ids, website: $('rWeb').value });
+      cause: cause, symptom: cause && cause !== '其他' ? '' : $('rSym').value, impact: imp ? imp.value : 'part', photos: ids, website: $('rWeb').value });
   }).then(function (id) {
-    $('form').innerHTML = '<div class="done"><div>已送出，駐點人員會盡快處理</div><div class="id">' + esc(id) + '</div><div class="muted">這是您的報修編號，詢問進度時請提供。</div>' +
+    $('form').innerHTML = '<div class="done"><div>已送出，駐點人員會盡快處理</div><div class="id">' + esc(id) + '</div><div class="muted">這是您的報修編號，詢問進度時請提供。</div>' + promise(imp) +
       '<button class="btn" onclick="location.reload()">再報一筆</button></div>';
   }).catch(function (e) {
     $('err').textContent = (e && e.message ? e.message : String(e)) + '　（也可以直接打電話或 LINE）';

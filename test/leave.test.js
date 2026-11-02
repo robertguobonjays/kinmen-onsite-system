@@ -39,17 +39,18 @@ ok(mails.filter(m => /輪您值班/.test(m.subject)).length >= 2, 'tomorrow remi
 setNow('2026-11-02 09:00');
 
 // 請假：駐點申請、規則
-err(() => G.api_applyLeave(TS, { start: '2026-11-10', end: '2026-11-10', reason: '' }), 'reason required', /原因/);
-err(() => G.api_applyLeave(TS, { start: '2026-11-01', end: '2026-11-01', reason: 'x' }), 'no past', /以前/);
-err(() => G.api_applyLeave(TS, { start: '2026-11-12', end: '2026-11-10', reason: 'x' }), 'bad range', /格式/);
-err(() => G.api_applyLeave(TS, { start: '2026-11-01', end: '2026-12-31', reason: 'x' }), 'too long');
+const K = { kind: '事假', proxy: 'b@c.com' }, K2 = { kind: '事假', proxy: 'a@c.com' };
+err(() => G.api_applyLeave(TS, { ...K, start: '2026-11-10', end: '2026-11-10', reason: '' }), 'reason required', /原因/);
+err(() => G.api_applyLeave(TS, { ...K, start: '2026-11-01', end: '2026-11-01', reason: 'x' }), 'no past', /以前/);
+err(() => G.api_applyLeave(TS, { ...K, start: '2026-11-12', end: '2026-11-10', reason: 'x' }), 'bad range', /格式/);
+err(() => G.api_applyLeave(TS, { ...K, start: '2026-11-01', end: '2026-12-31', reason: 'x' }), 'too long');
 mails.length = 0;
 const sh = G.api_getSchedule(TA, '2026-11').days.filter(d => d.date > '2026-11-10' && d.email === 'a@c.com' && d.people.length === 1)[0].date;
-const r1 = G.api_applyLeave(TS, { start: sh, end: sh, reason: '返台看醫生' });
-ok(r1.advance >= 7 && mails.length === 1 && /待核可/.test(mails[0].subject), 'apply mails admins');
-const soon = G.api_applyLeave(TB, { start: '2026-11-04', end: '2026-11-05', reason: '家裡有事' });
+const r1 = G.api_applyLeave(TS, { ...K, start: sh, end: sh, reason: '返台看醫生' });
+ok(r1.advance >= 7 && mails.length === 2 && mails.some(m => /待核可/.test(m.subject)), 'apply mails admins and proxy');
+const soon = G.api_applyLeave(TB, { ...K2, start: '2026-11-04', end: '2026-11-05', reason: '家裡有事' });
 ok(soon.advance === 2, 'short notice still allowed');
-err(() => G.api_applyLeave(TS, { start: sh, end: sh, reason: '再一次' }), 'overlap', /已經有/);
+err(() => G.api_applyLeave(TS, { ...K, start: sh, end: sh, reason: '再一次' }), 'overlap', /已經有/);
 
 // 請假紀錄權限
 ok(G.api_listLeave(TS).length === 1 && G.api_listLeave(TS)[0].email === 'a@c.com', 'staff sees own only');
@@ -61,10 +62,10 @@ ok(G.api_home(TA).pendingLeave === 2 && G.api_home(TS).pendingLeave === 0, 'pend
 err(() => G.api_reviewLeave(TS, r1.id, 'approve', ''), 'staff cannot approve', /主管/);
 mails.length = 0;
 let rv = G.api_reviewLeave(TC, r1.id, 'approve', '');
-ok(rv.status === '已核可' && rv.removed[0] === sh && rv.gaps[0] === sh, 'approve removes shift, gap reported');
+ok(rv.status === '已核可' && rv.removed[0] === sh && !rv.gaps.length, 'approve moves shift to proxy');
 const sd = G.api_getSchedule(TA, '2026-11').days.find(d => d.date === sh);
-ok(!sd.email && !sd.conflict, 'person removed');
-ok(mails.some(m => /已核可/.test(m.subject)) && mails.some(m => /缺人/.test(m.subject)), 'mails after approve');
+ok(sd.email === 'b@c.com' && sd.people.length === 1 && !sd.conflict, 'proxy on shift');
+ok(mails.some(m => /已核可/.test(m.subject)) && mails.some(m => /代理上班/.test(m.subject)), 'mails after approve');
 err(() => G.api_reviewLeave(TA, r1.id, 'reject', ''), 'cannot review twice', /已經/);
 err(() => G.api_cancelLeave(TS, r1.id), 'staff cannot cancel approved', /主管/);
 G.api_autoSchedule(TA, '2026-11', true);
@@ -73,7 +74,7 @@ G.api_setShift(TA, sh, ['a@c.com'], '');
 ok(G.api_getSchedule(TA, '2026-11').days.find(d => d.date === sh).conflict, 'manual assign on leave flagged');
 rv = G.api_reviewLeave(TA, soon.id, 'reject', '人手不足');
 ok(rv.status === '已駁回' && G.api_listLeave(TB)[0].note === '人手不足', 'reject with note');
-const r3 = G.api_applyLeave(TB, { start: '2026-11-25', end: '2026-11-25', reason: 'x' });
+const r3 = G.api_applyLeave(TB, { ...K2, start: '2026-11-25', end: '2026-11-25', reason: 'x' });
 err(() => G.api_cancelLeave(TS, r3.id), 'cannot cancel others');
 G.api_cancelLeave(TB, r3.id);
 ok(G.api_listLeave(TB).find(l => l.id === r3.id).status === '已取消', 'own cancel');

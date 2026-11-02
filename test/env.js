@@ -1,6 +1,6 @@
 // 模擬 Apps Script 環境測試 Code.gs
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const code = fs.readFileSync(path.join(__dirname, '../src/Code.gs'), 'utf8');
+const code = fs.readFileSync(path.join(__dirname, '../src/Code.gs'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../src/Ops.gs'), 'utf8');
 
 let FAKE_NOW = null; // ms
 const RealDate = Date;
@@ -69,7 +69,7 @@ const ctx = {
   MailApp: { sendEmail: o => mails.push(o) },
   LockService: { getScriptLock: () => ({ waitLock() { }, tryLock() { return true; }, releaseLock() { } }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, getProperties: () => ({ ...props }), deleteProperty: k => delete props[k] }) },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
+  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, getAll: ks => { const o = {}; ks.forEach(k => { if (cache[k]) o[k] = cache[k]; }); return o; }, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
   DriveApp: {
     createFolder: n => makeFolder('FOLDER1', n),
     getFolderById: id => { if (id === 'BAD') throw new Error('no access'); return makeFolder(id, 'root'); },
@@ -90,5 +90,6 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(code, ctx);
 const G = ctx;
+const resetRequest = () => { vm.runInContext('VALS_ = {}; GENS_ = null; HEAD_ = {};', ctx); }; // 模擬下一次請求
 function setNow(s) { FAKE_NOW = new RealDate(s.replace(' ', 'T') + ':00+08:00').getTime(); }
-module.exports = { FDate, G, sheets, mails, props, cache, folders, setNow, as: e => { ACTIVE = e; } };
+module.exports = { FDate, G, sheets, mails, props, cache, folders, setNow, resetRequest, as: e => { ACTIVE = e; } };

@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
     let b = req.body;
     if (typeof b === 'string') b = JSON.parse(b || '{}');
     b = b || {};
-    await backend.call('api_listPeople', [b.token]); // 檢查主管權限
+    await backend.call('api_checkAdmin', [b.token]); // 檢查主管權限
     const ext = (String(b.name).match(/\.(\w+)$/) || [])[1];
     const type = ext && TYPES[ext.toLowerCase()];
     if (!type) throw new Error('只能上傳 PDF、圖檔、Word、Excel');

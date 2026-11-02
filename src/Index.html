@@ -189,6 +189,29 @@
   .pw .eye { position: absolute; top: 0; right: 0; bottom: 0; width: 44px; border: 0; background: none; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
   .pw .eye:hover { color: var(--text); }
   .pw .eye svg { width: 20px; height: 20px; }
+  .cal .who small { display: block; font-size: 10px; font-weight: 500; }
+  .lvbox .tms { display: flex; gap: 4px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+  .lvbox .tms input { padding: 4px 6px; font-size: 13px; }
+  .avt th, .avt td { white-space: nowrap; padding: 6px 8px; font-size: 13px; }
+  .avt tr { cursor: pointer; }
+  .avt tr:hover td { background: #f7f9fc; }
+  .avt .on { color: var(--primary); font-weight: 700; }
+  .avt .no { color: var(--bad); }
+  .ln { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; color: #4a5361; margin-top: 3px; cursor: pointer; }
+  .ln input { margin-top: 4px; }
+  .major { font-size: 14px; font-weight: 700; margin: 16px 0 2px; padding: 6px 10px; background: var(--bg); border-radius: 8px; }
+  .minor { font-size: 13px; font-weight: 600; color: var(--primary); margin: 10px 0 0; }
+  .tkt tr[onclick] { cursor: pointer; }
+  .tkt tr[onclick]:hover td { background: #f7f9fc; }
+  .tkt td { font-size: 13px; }
+  .tkt .sy { max-width: 260px; overflow-wrap: anywhere; }
+  .only-narrow { display: none; }
+  .post { padding: 12px 0; border-top: 1px solid var(--line); }
+  .post:first-child { border-top: 0; }
+  .body { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
+  .reply { margin: 8px 0 0 12px; padding: 8px 12px; background: var(--bg); border-radius: 10px; }
+  .morelist button { display: flex; width: 100%; border: 0; background: none; padding: 13px 8px; font-size: 15px; font-family: inherit; color: var(--text); border-bottom: 1px solid var(--line); cursor: pointer; justify-content: space-between; }
+  nav .m-more { display: none; }
   #print { display: none; }
   @media print {
     body.printing > *:not(#print) { display: none !important; }
@@ -204,12 +227,17 @@
     .modal { max-width: 660px; }
   }
   @media screen and (min-width: 1600px) { html { zoom: 1.3; } }
+  @media (min-width: 761px) and (max-width: 1180px) { header h1 { display: none; } }
   /* 手機：選單改到底部 */
   @media (max-width: 760px) {
     .hd-in { height: 52px; }
     nav { position: fixed; left: 0; right: 0; bottom: 0; height: auto; background: #fff; border-top: 1px solid var(--line); gap: 0; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
     nav button { flex: 1; flex-direction: column; gap: 2px; padding: 7px 0 6px; font-size: 11px; }
     nav button svg { display: block; width: 22px; height: 22px; }
+    nav .m-hide { display: none; }
+    nav .m-more { display: flex; }
+    .only-wide { display: none; }
+    .only-narrow { display: block; }
     nav button.on { box-shadow: none; color: var(--primary); }
     nav .dot { top: 5px; right: calc(50% - 16px); }
     main { padding: 14px 12px 90px; }
@@ -247,9 +275,9 @@ function loadFailed() { var l = document.querySelector('.loader'); if (l) l.oute
 
 /* ---------- 共用 ---------- */
 // 看過的頁面先秀暫存資料，同時在背景更新；任何寫入都會清掉暫存，避免看到舊資料
-var READS = { api_home: 1, api_getSchedule: 1, api_listTickets: 1, api_getInspections: 1, api_listSOP: 1, api_attendance: 1, api_listInspItems: 1, api_listLeave: 1, api_listWorklog: 1, api_inspectionHistory: 1 };
-var NO_CLEAR = { api_login: 1, api_googleLogin: 1, api_logout: 1, api_init: 1, api_monthReport: 1, api_batch: 1, api_listPeople: 1 };
-var CACHE = {}, WAIT = {}, COLD = {}, REV = {}, GEN = 0, FRESH_MS = 10000;
+var READS = { api_home: 1, api_getSchedule: 1, api_listTickets: 1, api_getInspections: 1, api_listSOP: 1, api_attendance: 1, api_listInspItems: 1, api_listLeave: 1, api_listWorklog: 1, api_inspectionHistory: 1, api_listTasks: 1, api_listStock: 1, api_listBoard: 1, api_monthStats: 1, api_listMenu: 1 };
+var NO_CLEAR = { api_login: 1, api_googleLogin: 1, api_logout: 1, api_init: 1, api_monthReport: 1, api_batch: 1, api_listPeople: 1, api_uploadPunch: 1, api_uploadPhoto: 1 };
+var CACHE = {}, WAIT = {}, COLD = {}, REV = {}, GEN = 0, FRESH_MS = 60000; // 1 分鐘內重看同一頁不打 API
 function cacheClear() { CACHE = {}; WAIT = {}; COLD = {}; REV = {}; GEN++; }
 function cachePut(key, j) { CACHE[key] = { j: j, t: Date.now() }; }
 function run(fn, args, ok, fail) { google.script.run.withSuccessHandler(ok).withFailureHandler(fail)[fn].apply(null, args); }
@@ -273,7 +301,7 @@ function api(fn) {
     run(fn, args, function (r) {
       busy(-1);
       if (key) { delete COLD[key]; if (gen === GEN) cachePut(key, JSON.stringify(r)); }
-      else if (!NO_CLEAR[fn]) { cacheClear(); prefetchSoon(); }
+      else if (!NO_CLEAR[fn]) cacheClear();
       res(r);
     }, function (e) {
       busy(-1);
@@ -309,12 +337,11 @@ function canRedraw() {
   var d = APP.page === 'insp' && APP.inspDraft;
   return !d || !Object.keys(d).some(function (k) { return d[k].result || d[k].note; });
 }
-function prefetchSoon() { clearTimeout(APP._pf); APP._pf = setTimeout(prefetch, 1500); }
+function prefetchSoon() { clearTimeout(APP._pf); APP._pf = setTimeout(prefetch, 1500); } // 只在登入後跑一次
 function prefetch() {
   if (!APP.token || !APP.init) return;
-  var t = APP.init.today, list = [['api_home', []], ['api_getSchedule', [APP.month]], ['api_listTickets', [APP.tkFilter === 'open' ? { open: true } : { month: APP.tkFilter }]],
-    ['api_getInspections', [APP.inspDate]], ['api_listSOP', []], ['api_attendance', [APP.pFrom || t, APP.pTo || t, APP.pWho || '']], ['api_listLeave', []]];
-  if (isAdmin()) list.push(['api_listInspItems', []]);
+  var list = [['api_home', []], ['api_getSchedule', [APP.month]], ['api_listTickets', [APP.tkFilter === 'open' ? { open: true } : { month: APP.tkFilter }]],
+    ['api_getInspections', [APP.inspDate]]];
   list = list.map(function (c) { return { fn: c[0], args: c[1], key: c[0] + JSON.stringify(c[1]) }; })
     .filter(function (c) { return !CACHE[c.key] && !WAIT[c.key] && !COLD[c.key]; });
   if (!list.length) return;
@@ -366,7 +393,7 @@ function remain(due) {
   if (m < 0) return '<span class="tag bad">逾期 ' + fmtMin(-m) + '</span>';
   return '<span class="tag ' + (m <= 15 ? 'warn' : '') + '">剩 ' + fmtMin(m) + '</span>';
 }
-function fmtMin(m) { return m >= 60 ? Math.floor(m / 60) + ' 小時 ' + (m % 60) + ' 分' : m + ' 分'; }
+function fmtMin(m) { return m >= 60 ? Math.floor(m / 60) + ' 小時' + (m % 60 ? ' ' + (m % 60) + ' 分' : '') : m + ' 分'; }
 function lvTag(l) { return '<span class="tag lv' + l + '">' + ({ 1: '第一級', 2: '第二級', 3: '第三級' })[l] + '</span>'; }
 function stTag(s) { var c = { '待回覆': 'bad', '處理中': 'warn', '已排除': 'p', '已結案': 'ok' }[s] || ''; return '<span class="tag ' + c + '">' + esc(s) + '</span>'; }
 function val(id) { var e = $(id); return e ? e.value.trim() : ''; }
@@ -534,7 +561,8 @@ function pwSave() {
   if ($('pwN').value !== $('pwN2').value) return toast('兩次新密碼不一樣', true);
   api('api_changePassword', $('pwO').value, $('pwN').value).then(function () { APP.init.me.mustChange = false; closeModal(); toast('密碼已更新'); });
 }
-var PAGES = [['home', '首頁'], ['punch', '打卡'], ['schedule', '排班'], ['tickets', '叫修'], ['insp', '巡檢'], ['sop', 'SOP'], ['admin', '管理']];
+var PAGES = [['home', '首頁'], ['punch', '打卡'], ['schedule', '排班'], ['tickets', '叫修'], ['insp', '巡檢'], ['tasks', '交辦'], ['stock', '備品'], ['board', '公告'], ['sop', 'SOP'], ['admin', '管理']];
+var PHONE_NAV = ['home', 'punch', 'schedule', 'tickets']; // 手機底部直接顯示的，其他收在「更多」
 var ICONS = { // 手機底部選單圖示（線條）
   home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
   punch: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -542,15 +570,26 @@ var ICONS = { // 手機底部選單圖示（線條）
   tickets: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
   insp: '<path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>',
   sop: '<path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4zM20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z"/>',
-  admin: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
+  admin: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  tasks: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12l2 2 4-4"/>',
+  stock: '<path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/>',
+  board: '<path d="M4 10v4l12 5V5zM16 8c2 .5 3 2 3 4s-1 3.500-3 4M7 15l1 5h3l-1-4"/>',
+  more: '<circle cx="5" cy="12" r="1.500"/><circle cx="12" cy="12" r="1.500"/><circle cx="19" cy="12" r="1.500"/>'
 };
 function renderNav(badges) {
   badges = badges || APP.badges || {};
   APP.badges = badges;
+  var svg = function (k) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[k] + '</svg>'; };
+  var hidden = PAGES.filter(function (p) { return PHONE_NAV.indexOf(p[0]) < 0 && (p[0] !== 'admin' || isAdmin()); });
   $('nav').innerHTML = PAGES.filter(function (p) { return p[0] !== 'admin' || isAdmin(); }).map(function (p) {
-    return '<button class="' + (APP.page === p[0] ? 'on' : '') + '" onclick="go(\'' + p[0] + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[p[0]] + '</svg>' +
-      p[1] + (badges[p[0]] ? '<span class="dot"></span>' : '') + '</button>';
-  }).join('');
+    var cls = (APP.page === p[0] ? 'on' : '') + (PHONE_NAV.indexOf(p[0]) < 0 ? ' m-hide' : '');
+    return '<button class="' + cls + '" onclick="go(\'' + p[0] + '\')">' + svg(p[0]) + p[1] + (badges[p[0]] ? '<span class="dot"></span>' : '') + '</button>';
+  }).join('') + '<button class="m-more' + (hidden.some(function (p) { return p[0] === APP.page; }) ? ' on' : '') + '" onclick="moreMenu()">' + svg('more') + '更多' + (hidden.some(function (p) { return badges[p[0]]; }) ? '<span class="dot"></span>' : '') + '</button>';
+}
+function moreMenu() {
+  modal('<h3>更多<button class="x" onclick="closeModal()">×</button></h3><div class="morelist">' + PAGES.filter(function (p) { return PHONE_NAV.indexOf(p[0]) < 0 && (p[0] !== 'admin' || isAdmin()); }).map(function (p) {
+    return '<button onclick="closeModal();go(\'' + p[0] + '\')"><span>' + p[1] + '</span>' + (APP.badges[p[0]] ? '<span class="tag bad">!</span>' : '<span class="muted">›</span>') + '</button>';
+  }).join('') + '</div>');
 }
 function go(p) {
   if (!PAGES.some(function (x) { return x[0] === p; }) || (p === 'admin' && !isAdmin())) p = 'home';
@@ -559,27 +598,33 @@ function go(p) {
   $('main').innerHTML = LOADER; window.scrollTo(0, 0);
   PAGE_FN[p]();
 }
-var PAGE_FN = { home: function () { pageHome(); }, punch: function () { pagePunch(); }, schedule: function () { pageSchedule(); }, tickets: function () { pageTickets(); }, insp: function () { pageInsp(); }, sop: function () { pageSop(); }, admin: function () { pageAdmin(); } };
+var PAGE_FN = { home: function () { pageHome(); }, punch: function () { pagePunch(); }, schedule: function () { pageSchedule(); }, tickets: function () { pageTickets(); }, insp: function () { pageInsp(); }, sop: function () { pageSop(); }, admin: function () { pageAdmin(); }, tasks: function () { pageTasks(); }, stock: function () { pageStock(); }, board: function () { pageBoard(); } };
 
 /* ---------- 首頁 ---------- */
 function pageHome() {
   api('api_home').then(function (h) {
     var open = h.tickets, over = open.filter(function (t) { return t.replyOver || t.fixOver; });
-    renderNav({ schedule: h.pendingLeave || '', tickets: open.length || '', sop: h.unread.length || '', insp: h.insp['每日'].done ? '' : '!' });
+    var wk = h.work;
+    renderNav({ schedule: h.pendingLeave || '', tickets: open.length || '', sop: h.unread.length || '', insp: h.insp['每日'].items && !h.insp['每日'].done ? '!' : '', tasks: wk.openTasks ? wk.openTasks : '', stock: wk.low.length || '' });
     var hr = Number(nowStr().slice(11, 13)), hi = hr < 11 ? '早安' : hr < 18 ? '午安' : '晚安';
     var html = '<div class="hello"><b>' + hi + '，' + esc(APP.init.me.name) + '</b><span class="muted">' + Number(h.today.slice(5, 7)) + ' 月 ' + Number(h.today.slice(8)) + ' 日 星期' + WD[wdOf(h.today)] + '</span></div>';
     html += punchCard(h.punch, h.today);
     // 待辦：只列需要動手的事
     var todo = [];
     var item = function (cls, text, js) { todo.push('<div class="todo" onclick="' + js + '"><span class="ic ' + cls + '"></span><span class="tx">' + text + '</span><span class="go">›</span></div>'); };
-    if (h.leave && h.leave.sched && !h.leave.confirmed) item('', '登記 ' + Number(h.leave.month.slice(5)) + ' 月不能上班的日子<div class="muted">' + md(h.leave.start) + '～' + md(h.leave.end) + ' 登記中</div>', 'APP.month=\'' + h.leave.month + '\';go(\'schedule\')');
-    if (h.plan && h.plan.status !== '已發布') item('p', '確認並發布 ' + Number(h.plan.month.slice(5)) + ' 月班表<div class="muted">' + (h.plan.status === '草稿' ? '系統已預排' : '尚未排班') + (h.plan.notYet.length ? '・未登記：' + h.plan.notYet.map(esc).join('、') : '') + '</div>', 'APP.month=\'' + h.plan.month + '\';go(\'schedule\')');
+    if (h.leave && h.leave.sched && !h.leave.confirmed) item('', '填 ' + Number(h.leave.month.slice(5)) + ' 月可以上班的時段<div class="muted">' + md(h.leave.start) + '～' + md(h.leave.end) + ' 登記中</div>', 'APP.month=\'' + h.leave.month + '\';go(\'schedule\')');
+    if (h.plan && h.plan.status !== '已發布') item('p', '安排並發布 ' + Number(h.plan.month.slice(5)) + ' 月班表<div class="muted">' + (h.plan.status === '草稿' ? '排班中' : '尚未排班') + (h.plan.notYet.length ? '・未回覆：' + h.plan.notYet.map(esc).join('、') : '') + '</div>', 'APP.month=\'' + h.plan.month + '\';go(\'schedule\')');
     if (h.pendingLeave) item('p', h.pendingLeave + ' 筆請假待核可', 'APP.schSub=\'leave\';go(\'schedule\')');
     if (open.length) item(over.length ? 'bad' : '', open.length + ' 件叫修未結案' + (over.length ? '<div class="muted" style="color:var(--bad)">' + over.length + ' 件已逾期</div>' : ''), 'go(\'tickets\')');
-    var undone = ['每日', '每週', '每月', '每季'].filter(function (f) { return !h.insp[f].done; });
+    if (wk.openTasks) item(wk.overdue ? 'bad' : '', wk.openTasks + ' 件交辦事項未完成' + (wk.overdue ? '<div class="muted" style="color:var(--bad)">' + wk.overdue + ' 件已逾期</div>' : ''), 'go(\'tasks\')');
+    if (wk.low.length) item('bad', wk.low.length + ' 項備品耗材庫存偏低<div class="muted">' + wk.low.slice(0, 3).map(esc).join('、') + '</div>', 'go(\'stock\')');
+    var undone = Object.keys(h.insp).filter(function (f) { return f !== '保固期滿前' && h.insp[f].items && !h.insp[f].done; });
     if (undone.length) item('', undone.join('、') + '巡檢未完成', 'go(\'insp\')');
     if (h.unread.length) item('', h.unread.length + ' 份必讀文件未讀', 'go(\'sop\')');
     html += '<div class="card"><h2>待辦</h2>' + (todo.length ? todo.join('') : '<div class="empty">目前沒有待辦事項 ✓</div>') + '</div>';
+    if (wk.notices.length) html += '<div class="card"><h2>公告<span class="sp"></span><button class="btn sm ghost" onclick="APP.boardSub=\'notice\';go(\'board\')">全部</button></h2>' + wk.notices.map(function (n) {
+      return '<div class="post"><b>' + (n.pinned ? '<span class="tag warn">置頂</span> ' : '') + esc(n.title) + '</b><div class="muted">' + esc(n.by) + ' ' + esc(n.at.slice(5)) + '</div><div class="body">' + esc(n.body.length > 120 ? n.body.slice(0, 120) + '…' : n.body) + '</div></div>';
+    }).join('') + '</div>';
     html += '<div class="card"><h2>值班</h2>' +
       '<div class="kv"><span>今天</span><b>' + esc(h.todayDuty || '未排班') + '</b></div>' +
       '<div class="kv"><span>明天</span><span>' + esc(h.tomorrowDuty || '未排班') + '</span></div>' +
@@ -604,7 +649,7 @@ function punchCard(p, today) {
   return html + '</div>';
 }
 function punchForm(type) {
-  APP.punchLoc = '';
+  APP.punchLoc = ''; APP.punchAcc = '';
   modal('<h3>' + type + '打卡<button class="x" onclick="closeModal()">×</button></h3>' +
     '<div class="muted">現在 ' + esc(nowStr().slice(11)) + '・需要拍一張照片</div>' +
     '<label class="camera-btn" style="margin-top:12px">📷 拍照<input type="file" id="pPhoto" accept="image/*" capture="user" onchange="punchPreview()"></label>' +
@@ -612,13 +657,19 @@ function punchForm(type) {
     '<input id="pNote" class="full" maxlength="100" placeholder="備註（選填）" style="margin-top:12px">' +
     '<div class="muted" id="pLoc" style="margin-top:6px"></div>' +
     '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" id="pGo" disabled onclick="punchSubmit(\'' + type + '\')">送出' + type + '打卡</button></div>');
-  if (navigator.geolocation) {
-    $('pLoc').textContent = '正在取得位置（可略過）…';
+  APP.punchGeo = new Promise(function (done) {
+    if (!navigator.geolocation) { if ($('pLoc')) $('pLoc').textContent = '這台裝置不能定位，會記錄為「未定位」'; return done(); }
+    $('pLoc').textContent = '正在取得位置…';
     navigator.geolocation.getCurrentPosition(function (pos) {
       APP.punchLoc = pos.coords.latitude.toFixed(5) + ',' + pos.coords.longitude.toFixed(5);
-      if ($('pLoc')) $('pLoc').textContent = '📍 已記錄位置';
-    }, function () { if ($('pLoc')) $('pLoc').textContent = '未取得位置（不影響打卡）'; }, { timeout: 8000, maximumAge: 60000 });
-  }
+      APP.punchAcc = pos.coords.accuracy || '';
+      if ($('pLoc')) $('pLoc').textContent = '📍 已取得位置' + (pos.coords.accuracy ? '（誤差約 ' + Math.round(pos.coords.accuracy) + ' 公尺）' : '');
+      done();
+    }, function () {
+      if ($('pLoc')) $('pLoc').textContent = '未取得位置，會記錄為「未定位」。請允許瀏覽器使用位置後重新打卡。';
+      done();
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  });
 }
 function punchPreview() {
   var f = $('pPhoto').files[0];
@@ -632,11 +683,10 @@ function punchSubmit(type) {
   var f = $('pPhoto').files[0];
   if (!f) return toast('請先拍照', true);
   $('pGo').disabled = true; $('pGo').textContent = '上傳中…';
-  var full;
-  compress(f, 1280, 0.8).then(function (d) { return api('api_uploadPunch', 'punch.jpg', d); })
-    .then(function (u) { full = u; return compress(f, 240, 0.7); })
-    .then(function (d) { return api('api_uploadPunch', 'punch_thumb.jpg', d); })
-    .then(function (thumb) { return api('api_punch', type, full, thumb, APP.punchLoc || '', val('pNote')); })
+  var note = val('pNote');
+  Promise.all([compress(f, 1280, 0.8).then(function (d) { return api('api_uploadPunch', 'punch.jpg', d); }),
+    compress(f, 240, 0.7).then(function (d) { return api('api_uploadPunch', 'punch_thumb.jpg', d); }), APP.punchGeo])
+    .then(function (u) { return api('api_punch', type, u[0], u[1], APP.punchLoc || '', note, APP.punchAcc || ''); })
     .then(function (r) { closeModal(); toast(type + '打卡完成 ' + r.time); go(APP.page); })
     .catch(function () { if ($('pGo')) { $('pGo').disabled = false; $('pGo').textContent = '送出' + type + '打卡'; } });
 }
@@ -677,11 +727,15 @@ function drawPunchList() {
     $('pList').innerHTML = r.summary.length ? '<div class="tw"><table class="t"><tr><th>日期</th><th>人員</th><th>上班</th><th>下班</th><th>備註</th></tr>' +
       r.summary.slice().reverse().map(function (x, i) {
         return '<tr' + (isAdmin() ? ' style="cursor:pointer" onclick="punchDetail(\'' + x.date + '\',\'' + esc(x.email) + '\')"' : '') + '><td style="white-space:nowrap">' + md(x.date) + '<div class="muted">' + WD[wdOf(x.date)] + '</div></td><td style="white-space:nowrap">' + esc(x.name) + '</td>' +
-          '<td>' + esc(x.in || '—') + img(x.inThumb, x.inPhoto) + fixMark(x.inFixed, x.inAt, x.date) + '</td><td>' + esc(x.out || '—') + img(x.outThumb, x.outPhoto) + fixMark(x.outFixed, x.outAt, x.date) + '</td>' +
+          '<td>' + esc(x.in || '—') + img(x.inThumb, x.inPhoto) + fixMark(x.inFixed, x.inAt, x.date) + whereMark(x.in, x.inFixed, x.inLoc, x.inIp) + '</td><td>' + esc(x.out || '—') + img(x.outThumb, x.outPhoto) + fixMark(x.outFixed, x.outAt, x.date) + whereMark(x.out, x.outFixed, x.outLoc, x.outIp) + '</td>' +
           '<td class="muted"' + (/遲到|早退|未打/.test(x.note) ? ' style="color:var(--warn)"' : '') + '>' + esc(x.note) + '</td></tr>';
       }).join('') + '</table></div>'
       : '<div class="empty">這段期間沒有打卡紀錄</div>';
   });
+}
+function whereMark(time, fixed, loc, ip) { // 打卡地點與 IP（補打沒有）
+  if (!time || fixed) return '';
+  return '<div class="muted" style="font-size:12px;white-space:nowrap">' + (loc ? '<a target="_blank" onclick="event.stopPropagation()" href="https://maps.google.com/?q=' + esc(loc) + '">📍位置</a>' : '<span style="color:var(--warn)">未定位</span>') + (ip ? ' ' + esc(ip) : '') + '</div>';
 }
 function fixMark(fixed, at, date) { // 補打：顯示實際操作時間
   if (!fixed) return '';
@@ -693,7 +747,7 @@ function punchDetail(date, email) {
   modal('<h3>' + md(date) + ' 打卡明細<button class="x" onclick="closeModal()">×</button></h3>' +
     recs.map(function (x) {
       return '<div class="list-item" style="cursor:default"><div class="row"><span class="tag ' + (x.type === '上班' ? 'ok' : '') + '">' + esc(x.type) + '</span><b>' + esc(x.time) + '</b>' + esc(x.name) +
-        (x.fixed ? '<span class="tag warn">補登（' + esc(x.by) + '）</span>' : '') + (x.loc ? '<a class="muted" target="_blank" href="https://maps.google.com/?q=' + esc(x.loc) + '">📍位置</a>' : '') +
+        (x.fixed ? '<span class="tag warn">補登（' + esc(x.by) + '）</span>' : '') + (x.loc ? '<a class="muted" target="_blank" href="https://maps.google.com/?q=' + esc(x.loc) + '">📍位置' + (x.acc ? '（誤差 ' + esc(x.acc) + ' 公尺）' : '') + '</a>' : (x.fixed ? '' : '<span class="tag warn">未定位</span>')) + (x.ip ? '<span class="muted">IP ' + esc(x.ip) + '</span>' : '') +
         '<span style="margin-left:auto"></span><button class="btn sm" onclick="punchFixForm(\'' + x.id + '\')">修改</button><button class="btn sm bad" onclick="punchDel(\'' + x.id + '\')">刪除</button></div>' +
         '<div class="muted">紀錄時間 ' + esc(x.at) + '（' + esc(x.by) + '）</div>' +
         (x.note ? '<div class="muted">' + esc(x.note) + '</div>' : '') + (x.photo ? '<a href="' + esc(x.photo) + '" target="_blank"><img class="thumb" style="width:90px;height:90px;margin:6px 0 0" src="' + esc(x.thumb || x.photo) + '"></a>' : '') + '</div>';
@@ -750,21 +804,20 @@ function schTabs() {
 function schNotice(d, confirmed, myDays) {
   var w = d.window, mm = Number(d.month.slice(5)) + ' 月';
   if (isAdmin()) {
-    if (d.status === '已發布') return '<div class="notice ok"><b>' + mm + '班表已發布</b>點日期可以指派當天上班的人，一天可選多人；修改後會寄異動通知。</div>';
-    return '<div class="notice"><b>正在排 ' + mm + '的班</b>點日期指派當天上班的人，一天可選多人。排好後按「發布」，駐點人員才看得到。</div>';
+    if (d.status === '已發布') return '<div class="notice ok"><b>' + mm + '班表已發布</b>點日期可以調整當天上班的人和時段，一天可多人；修改後會寄異動通知。</div>';
+    return '<div class="notice"><b>正在排 ' + mm + '的班</b>先看下面「大家填的時段」，再點日期指派人員與時段，一天可多人。排好後按「發布」，駐點人員才看得到。</div>';
   }
   if (d.status === '已發布') return '<div class="notice ok"><b>' + mm + '正式班表</b>' + (myDays.length ? '你這個月上班 ' + myDays.length + ' 天（藍框）。' : '你這個月沒有排班。') + '要休假請到上方「請假」，或直接點日期申請。</div>';
+  var mine = d.avail.some(function (a) { return a.email === APP.init.me.email; }) || d.unavail.some(function (u) { return u.email === APP.init.me.email; });
   if (w.open) return confirmed
-    ? '<div class="notice ok"><b>' + mm + '排班登記：你已回覆</b>截止前還可以改。班表由主管排好發布後，會寄信通知你。</div>'
-    : '<div class="notice warn"><b>現在要排 ' + mm + '的班，請你登記</b>請在 ' + md(w.end) + ' 前點下面行事曆中「不能上班」的日子，再按下面的按鈕。<div style="margin-top:8px"><button class="btn p" onclick="confirmMonth()">' + (d.unavail.some(function (u) { return u.email === APP.init.me.email; }) ? '我登記好了' : '我都可以，聽安排') + '</button></div></div>';
-  return '<div class="notice"><b>' + mm + '班表排班中</b>' + (d.today < w.start ? md(w.start) + ' 開放登記不能上班的日子。' : '主管正在排班，發布後會寄信通知你。') + '</div>';
+    ? '<div class="notice ok"><b>' + mm + '排班登記：你已回覆</b>截止前還可以改。大家填好後由管理員統一安排，發布後會寄信通知你。</div>'
+    : '<div class="notice warn"><b>現在要排 ' + mm + '的班，請把你可以上班的時間填上來</b>請在 ' + md(w.end) + ' 前點下面行事曆的日期填時段，填完按下面的按鈕。<div style="margin-top:8px"><button class="btn p" onclick="confirmMonth()">' + (mine ? '我填好了' : '我都可以，聽安排') + '</button></div></div>';
+  return '<div class="notice"><b>' + mm + '班表排班中</b>' + (d.today < w.start ? md(w.start) + ' 開放登記，也可以先填可上班的時段。' : '管理員正在排班，發布後會寄信通知你。') + '</div>';
 }
 function pageSchedule() {
   if (APP.schSub === 'leave') return pageLeave();
   api('api_getSchedule', APP.month).then(function (d) {
     APP.sch = d; drawSchedule();
-    if (d.auto === 'new') toast('系統已依大家登記的日子預排好 ' + d.month + ' 班表，可直接調整後發布');
-    if (d.auto === 'redo') toast('有人更新了登記，系統已重新預排（手動指定的日子保留）');
   });
 }
 function drawSchedule() {
@@ -785,9 +838,9 @@ function drawSchedule() {
     '<span class="tag ' + stTag2 + '">' + esc(d.status === '草稿' ? '草稿・大家還看不到' : d.status) + '</span>' +
     '<span class="sp"></span>' +
     (d.visible ? '<button class="btn sm ghost" onclick="printSchedule()">列印</button>' : '') +
-    (admin ? '<span class="row"><button class="btn sm" onclick="autoSchedule()">自動排班</button><button class="btn sm p" onclick="publishSchedule()">' + (d.status === '已發布' ? '重新發布' : '發布') + '</button></span>' : '') + '</h2>';
+    (admin ? '<span class="row"><button class="btn sm" onclick="autoSchedule()">依時段自動帶入</button><button class="btn sm p" onclick="publishSchedule()">' + (d.status === '已發布' ? '重新發布' : '發布') + '</button></span>' : '') + '</h2>';
   var conflicts = admin ? d.days.filter(function (x) { return x.conflict; }).length : 0;
-  if (conflicts) html += '<div class="muted" style="color:var(--bad);margin-bottom:8px">有 ' + conflicts + ' 天排到的人那天不能上班或請假，請點日期調整</div>';
+  if (conflicts) html += '<div class="muted" style="color:var(--bad);margin-bottom:8px">有 ' + conflicts + ' 天排到的人那段時間不能上班或請假，請點日期調整</div>';
   if (!admin && !d.visible) html += '<div class="muted" style="margin-bottom:8px">本月班表還沒發布</div>';
   html += '<div class="cal">' + WD.slice(1).map(function (w, i) { return '<div class="hd">' + w + '</div>'; }).join('');
   var first = wdOf(d.days[0].date);
@@ -799,82 +852,125 @@ function drawSchedule() {
     if (x.date < d.today) cls.push('past');
     if (x.date === d.today) cls.push('today');
     if (mine) cls.push('mineoff');
-    if (d.visible && !x.email && d.status !== '未排班') cls.push('gap');
+    var myAv = d.avail.filter(function (a) { return a.date === x.date && a.email === me.email; })[0];
+    if (d.status === '已發布' && !x.email) cls.push('gap'); // 排班中不用滿版紅框
     if (x.conflict) cls.push('gap');
     if (x.people.some(function (p) { return p.email === me.email; })) cls.push('mine');
     html += '<div class="' + cls.join(' ') + '"' + (x.conflict ? ' style="background:var(--bad-weak)"' : '') + ' onclick="dayClick(\'' + x.date + '\')">' +
       '<span class="n">' + Number(x.date.slice(8)) + '</span>' + (x.manual && admin ? '<span class="mk" title="手動指定"></span>' : '') +
-      (x.people.length ? x.people.map(function (p) { return '<span class="who" style="background:' + colorOf(p.email) + '1c;color:' + colorOf(p.email) + '">' + esc(p.name) + '</span>'; }).join('') : (d.visible && d.status !== '未排班' ? '<span class="off">缺人</span>' : '')) +
+      (x.people.length ? x.people.map(function (p) { var dfl = p.label === p.name; return '<span class="who" style="background:' + colorOf(p.email) + '1c;color:' + colorOf(p.email) + '">' + esc(p.name) + (dfl ? '' : '<small>' + esc(p.start) + '-' + esc(p.end) + '</small>') + '</span>'; }).join('') : (d.status === '已發布' ? '<span class="off">缺人</span>' : d.status === '草稿' ? '<span class="off" style="color:var(--muted)">未排</span>' : '')) +
+      (d.status !== '已發布' && myAv ? '<span class="off" style="color:var(--ok)">可 ' + esc(myAv.start) + '-' + esc(myAv.end) + '</span>' : '') +
       offs.map(function (u) { return '<span class="off">✕ ' + esc(u.name) + '</span>'; }).join('') +
       d.leaves.filter(function (l) { return l.start <= x.date && l.end >= x.date; }).map(function (l) { return '<span class="off">' + (l.status === '已核可' ? '假 ' : '待核 ') + esc(l.name) + '</span>'; }).join('') + '</div>';
   });
-  html += '</div><div class="legend">' + (admin ? '<span>點日期指派上班人員（可多人）</span><span>藍框＝我上班</span>' : d.status === '已發布' ? '<span>藍框＝你上班的日子</span><span>點日期申請請假</span>' : '<span>點日期登記／取消「這天不能上班」</span>') +
+  html += '</div><div class="legend">' + (admin ? '<span>點日期指派人員與時段（可多人）</span><span>藍框＝我上班</span>' : d.status === '已發布' ? '<span>藍框＝你上班的日子</span><span>點日期申請請假</span>' : '<span>點日期填可以上班的時段</span>') +
     '<span><i style="background:var(--bad-weak)"></i>我不能上班</span><span style="color:var(--bad)">✕ 不能上班的人</span>' + (admin ? '<span><i style="background:var(--muted);border-radius:50%;width:6px;height:6px"></i>手動指定</span>' : '') + '</div></div>';
 
+  // 管理員：大家填的時段一起看
+  if (admin) html += availTable(d);
   // 登記：一張卡片看完
-  html += '<div class="card"><h2>' + Number(d.month.slice(5)) + ' 月排班登記<span class="muted" style="font-weight:normal">' + md(w.start) + '～' + md(w.end) + (w.open ? '・登記中' : (d.today > w.end ? '・已截止' : '・未開始')) + '</span>' +
+  html += '<div class="card"><h2>' + Number(d.month.slice(5)) + ' 月時段登記<span class="muted" style="font-weight:normal">' + md(w.start) + '～' + md(w.end) + (w.open ? '・登記中' : (d.today > w.end ? '・已截止' : '・未開始')) + '</span>' +
     '<span class="sp"></span>' + (admin ? '<button class="btn sm ghost" onclick="windowForm()">設定期間</button>' : '') + '</h2>';
   if (APP.init.me.sched) {
-    html += '<div class="row" style="margin-bottom:12px"><span>我不能上班：' + (myOff.length ? myOff.map(function (u) { return md(u.date); }).join('、') : '<span class="muted">無</span>') + '</span><span class="sp"></span>' +
-      '<button class="btn sm ' + (confirmed ? '' : 'p') + '" onclick="confirmMonth()">' + (confirmed ? '✓ 已回覆' : (myOff.length ? '我登記好了' : '我都可以，聽安排')) + '</button></div>';
+    var myAvail = d.avail.filter(function (a) { return a.email === me.email; }).length;
+    html += '<div class="row" style="margin-bottom:12px"><span>我填了 ' + myAvail + ' 天時段' + (myOff.length ? '，不能上班 ' + myOff.length + ' 天' : '') + '</span><span class="sp"></span>' +
+      '<button class="btn sm ' + (confirmed ? '' : 'p') + '" onclick="confirmMonth()">' + (confirmed ? '✓ 已回覆' : (myAvail || myOff.length ? '我填好了' : '我都可以，聽安排')) + '</button></div>';
   }
   html += d.staff.map(function (p) {
     var c = d.confirms.filter(function (x) { return x.email === p.email; })[0];
-    var n = d.unavail.filter(function (u) { return u.email === p.email; }).length;
     return '<div class="kv" style="border-top:1px solid var(--line);padding:9px 0"><span class="pill" style="background:' + colorOf(p.email) + '1c;color:' + colorOf(p.email) + '">' + esc(p.name) + '</span>' +
-      '<span class="muted">' + (c ? esc(c.note || '已登記') : '<span style="color:var(--warn)">未登記</span>') + '・不能上班 ' + n + ' 天' + (d.visible ? '・排 ' + (d.stats[p.email] || 0) + ' 天' : '') + '</span></div>';
+      '<span class="muted">' + (c ? esc(c.note || '已回覆') : '<span style="color:var(--warn)">未回覆</span>') + (d.visible ? '・排 ' + (d.stats[p.email] || 0) + ' 天 ' + (d.hours[p.email] || 0) + ' 小時' : '') + '</span></div>';
   }).join('') + '</div>';
   $('main').innerHTML = html;
+}
+/** 日期 × 人員總表：管理員一眼比較大家的時段，點一列就能指派 */
+function availTable(d) {
+  var cell = function (x, p) {
+    var on = x.people.filter(function (q) { return q.email === p.email; })[0];
+    var av = d.avail.filter(function (a) { return a.date === x.date && a.email === p.email; })[0];
+    var off = d.unavail.some(function (u) { return u.date === x.date && u.email === p.email; });
+    var lv = d.leaves.some(function (l) { return l.email === p.email && l.start <= x.date && l.end >= x.date; });
+    var txt = lv ? '<span class="no">請假</span>' : off ? '<span class="no">不能</span>' : av ? esc(av.start) + '-' + esc(av.end) : '<span class="muted">—</span>';
+    return '<td>' + txt + (on ? '<div class="on">✓ ' + esc(on.start) + '-' + esc(on.end) + '</div>' : '') + '</td>';
+  };
+  return '<details class="card"' + (d.status === '已發布' ? '' : ' open') + '><summary style="cursor:pointer;font-weight:600">大家填的時段<span class="muted" style="font-weight:normal">　「—」＝沒填，✓＝已指派，點一列指派</span></summary>' +
+    '<div class="tw" style="margin-top:10px"><table class="t avt"><tr><th>日期</th>' + d.staff.map(function (p) { return '<th>' + esc(p.name) + '</th>'; }).join('') + '</tr>' +
+    d.days.map(function (x) { return '<tr onclick="shiftModal(\'' + x.date + '\')"><td>' + md(x.date) + '（' + WD[x.wd] + '）</td>' + d.staff.map(function (p) { return cell(x, p); }).join('') + '</tr>'; }).join('') +
+    '</table></div></details>';
 }
 function dayClick(date) {
   var d = APP.sch, me = APP.init.me;
   if (isAdmin()) return shiftModal(date);
   if (date < d.today) return toast('不能選今天以前的日期', true);
   if (d.status === '已發布') return leaveForm(date); // 班表已發布：要休假走請假
-  var mine = d.unavail.some(function (u) { return u.date === date && u.email === me.email; });
-  if (mine) {
-    api('api_toggleUnavail', date, '').then(function () { toast('已取消 ' + md(date) + ' 的登記'); pageSchedule(); });
-  } else {
-    modal('<h3>排班登記：' + md(date) + '（' + WD[wdOf(date)] + '）不能上班<button class="x" onclick="closeModal()">×</button></h3>' +
-      '<label class="f">原因（選填，例如：返台、看醫生）</label><input id="unReason" class="full" maxlength="50">' +
-      '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="saveUnavail(\'' + date + '\')">登記</button></div>');
-    setTimeout(function () { $('unReason').focus(); }, 50);
-  }
+  availForm(date);
 }
-function saveUnavail(date) {
-  api('api_toggleUnavail', date, val('unReason')).then(function (r) {
-    closeModal();
-    toast(r.conflict ? '已登記。那天原本排你值班，系統已寄信通知主管調班。' : '已登記 ' + md(date) + ' 不能上班');
-    pageSchedule();
-  });
+/** 填可以上班的時段：可一次套用到本月每週同一天或之後每一天 */
+function availForm(date) {
+  var d = APP.sch, me = APP.init.me, h = APP.init.settings['上班時間'].match(/\d{1,2}:\d{2}/g) || ['08:00', '17:30'];
+  var pad = function (t) { return t.length < 5 ? '0' + t : t; };
+  var av = d.avail.filter(function (a) { return a.date === date && a.email === me.email; })[0];
+  var off = d.unavail.filter(function (u) { return u.date === date && u.email === me.email; })[0];
+  var mode = off ? 'off' : 'time', wd = WD[wdOf(date)];
+  modal('<h3>' + md(date) + '（' + wd + '）我可以上班的時段<button class="x" onclick="closeModal()">×</button></h3>' +
+    '<div class="chips"><label><input type="radio" name="avM" value="time"' + (mode === 'time' ? ' checked' : '') + ' onchange="availMode()"><span>可以上班</span></label>' +
+    '<label><input type="radio" name="avM" value="off"' + (mode === 'off' ? ' checked' : '') + ' onchange="availMode()"><span>不能上班</span></label>' +
+    '<label><input type="radio" name="avM" value="clear" onchange="availMode()"><span>清除</span></label></div>' +
+    '<div id="avT" class="row" style="margin-top:6px"><div><label class="f">從</label><input type="time" id="avS" step="1800" value="' + esc(av ? av.start : pad(h[0])) + '"></div><div><label class="f">到</label><input type="time" id="avE" step="1800" value="' + esc(av ? av.end : pad(h[1] || '17:30')) + '"></div></div>' +
+    '<label class="f">套用到</label><select id="avR" class="full"><option value="one">只有這一天</option><option value="wd">本月每個星期' + wd + '</option><option value="rest">這天起到月底每一天</option></select>' +
+    '<label class="f">備註（選填）</label><input id="avN" class="full" maxlength="50" value="' + esc(av ? av.note : off ? off.reason : '') + '">' +
+    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" id="avGo" onclick="availSave(\'' + date + '\')">儲存</button></div>');
+  availMode();
+}
+function availMode() {
+  var m = document.querySelector('input[name=avM]:checked').value;
+  $('avT').style.display = m === 'time' ? 'flex' : 'none';
+}
+function availSave(date) {
+  var d = APP.sch, range = $('avR').value, wd = wdOf(date), mode = document.querySelector('input[name=avM]:checked').value;
+  var dates = d.days.filter(function (x) { return x.date >= d.today && (x.date === date || (range === 'rest' && x.date > date) || (range === 'wd' && x.wd === wd)); }).map(function (x) { return x.date; });
+  if (!dates.length) return toast('不能登記今天以前的日期', true);
+  $('avGo').disabled = true;
+  api('api_setAvail', { dates: dates, mode: mode, start: val('avS'), end: val('avE'), note: val('avN') }).then(function () {
+    closeModal(); toast('已儲存 ' + dates.length + ' 天'); pageSchedule();
+  }).catch(function () { if ($('avGo')) $('avGo').disabled = false; });
 }
 function confirmMonth() {
-  api('api_confirmMonth', APP.sch.month).then(function () { toast(isAdmin() ? '已記錄' : '已通知主管'); pageSchedule(); });
+  api('api_confirmMonth', APP.sch.month).then(function () { toast(isAdmin() ? '已記錄' : '已通知管理員'); pageSchedule(); });
 }
 function shiftModal(date) {
   var d = APP.sch, x = d.days.filter(function (y) { return y.date === date; })[0];
   var offs = d.unavail.filter(function (u) { return u.date === date; });
   var lvs = d.leaves.filter(function (l) { return l.start <= date && l.end >= date; });
+  var h = APP.init.settings['上班時間'].match(/\d{1,2}:\d{2}/g) || ['08:00', '17:30'];
+  var pad = function (t) { return t.length < 5 ? '0' + t : t; };
   var cand = APP.init.people.filter(function (p) { return p.active || x.people.some(function (q) { return q.email === p.email; }); })
     .sort(function (a, b) { return (b.sched ? 1 : 0) - (a.sched ? 1 : 0); });
-  var opts = cand.map(function (p) {
+  var opts = cand.map(function (p, i) {
     var off = offs.filter(function (u) { return u.email === p.email; })[0], lv = lvs.filter(function (l) { return l.email === p.email; })[0];
-    var on = x.people.some(function (q) { return q.email === p.email; });
-    return '<label class="lvbox"><input type="checkbox" name="shWho" value="' + esc(p.email) + '"' + (on ? ' checked' : '') + '><div><b>' + esc(p.name) + '</b>' +
+    var on = x.people.filter(function (q) { return q.email === p.email; })[0];
+    var av = d.avail.filter(function (a) { return a.date === date && a.email === p.email; })[0];
+    var s = on ? on.start : av ? av.start : pad(h[0]), e = on ? on.end : av ? av.end : pad(h[1] || '17:30');
+    return '<div class="lvbox"><input type="checkbox" name="shWho" id="shC' + i + '" data-i="' + i + '" value="' + esc(p.email) + '"' + (on ? ' checked' : '') + '><div style="flex:1"><label for="shC' + i + '" style="cursor:pointer"><b>' + esc(p.name) + '</b>' +
       (lv ? ' <span class="tag bad">' + (lv.status === '已核可' ? '請假' : '請假待核') + '</span>' : '') + (off ? ' <span class="tag warn">不能上班' + (off.reason ? '：' + esc(off.reason) : '') + '</span>' : '') +
-      '<div class="muted">本月已排 ' + (d.stats[p.email] || 0) + ' 天</div></div></label>';
+      (av ? ' <span class="tag ok">可 ' + esc(av.start) + '-' + esc(av.end) + '</span>' : '') +
+      '<div class="muted">本月已排 ' + (d.stats[p.email] || 0) + ' 天 ' + (d.hours[p.email] || 0) + ' 小時</div></label>' +
+      '<div class="tms"><input type="time" id="shS' + i + '" step="1800" value="' + esc(s) + '"><span class="muted">到</span><input type="time" id="shE' + i + '" step="1800" value="' + esc(e) + '"></div></div></div>';
   }).join('');
-  var me = APP.init.me, myOff = offs.some(function (u) { return u.email === me.email; });
+  var me = APP.init.me;
   modal('<h3>指派 ' + md(date) + '（' + WD[x.wd] + '）上班人員<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<div class="muted">可以勾選多人；都不勾代表這天沒有人上班。</div>' + opts +
+    '<div class="muted">勾選上班的人並調整時段，可以多人；都不勾代表這天沒有人上班。</div>' + opts +
     '<label class="f">備註</label><input id="shNote" class="full" value="' + esc(x.note) + '">' +
     (d.status === '已發布' ? '<div class="muted" style="margin-top:8px">本月已發布，修改後會寄「班表異動」通知給相關人員。</div>' : '') +
-    '<div class="foot">' + (me.sched && date >= d.today ? '<button class="btn" style="margin-right:auto" onclick="adminSelfOff(\'' + date + '\',' + myOff + ')">' + (myOff ? '取消我這天不能上班' : '登記我這天不能上班') + '</button>' : '') +
+    '<div class="foot">' + (me.sched && date >= d.today && d.status !== '已發布' ? '<button class="btn" style="margin-right:auto" onclick="availForm(\'' + date + '\')">填我自己的時段</button>' : '') +
     '<button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="saveShift(\'' + date + '\')">儲存</button></div>');
 }
 /* ---------- 請假 ---------- */
 var LEAVE_TAG = { '待核可': 'warn', '已核可': 'ok', '已駁回': 'bad', '已取消': '' };
-function leaveRange(l) { return l.start === l.end ? md(l.start) + '（' + WD[wdOf(l.start)] + '）' : md(l.start) + '～' + md(l.end); }
+function leaveRange(l) {
+  var st = l.startTime ? ' ' + l.startTime : '', et = l.endTime ? ' ' + l.endTime : '';
+  return l.start === l.end ? md(l.start) + '（' + WD[wdOf(l.start)] + '）' + st + (et ? '～' + l.endTime : '') : md(l.start) + st + '～' + md(l.end) + et;
+}
 function pageLeave() {
   api('api_listLeave').then(function (list) { APP.leaves = list; drawLeave(); });
 }
@@ -884,14 +980,14 @@ function drawLeave() {
   var shown = list.filter(function (l) { return (!APP.leaveWho || l.email === APP.leaveWho) && (!APP.leaveSt || l.status === APP.leaveSt); });
   var row = function (l, review) {
     var late = l.advance < 7;
-    return '<div class="lv"><div class="row"><b>' + (admin ? esc(l.name) + '・' : '') + leaveRange(l) + '</b><span class="muted">共 ' + l.days + ' 天</span><span class="tag ' + LEAVE_TAG[l.status] + '">' + esc(l.status) + '</span>' +
+    return '<div class="lv"><div class="row"><b>' + (admin ? esc(l.name) + '・' : '') + leaveRange(l) + '</b>' + (l.kind ? '<span class="tag p">' + esc(l.kind) + '</span>' : '') + '<span class="muted">' + l.hours + ' 小時</span><span class="tag ' + LEAVE_TAG[l.status] + '">' + esc(l.status) + '</span>' +
       (late ? '<span class="tag warn">前 ' + l.advance + ' 天才申請</span>' : '') + '<span class="sp"></span>' +
       (review ? '<button class="btn sm" onclick="leaveReject(\'' + l.id + '\')">駁回</button><button class="btn sm ok" onclick="leaveApprove(\'' + l.id + '\')">核可</button>' :
         (l.status === '待核可' && l.email === me.email) || (admin && l.status === '已核可') ? '<button class="btn sm ghost" onclick="leaveCancel(\'' + l.id + '\',\'' + l.status + '\')">取消</button>' : '') + '</div>' +
-      '<div style="margin-top:4px">原因：' + esc(l.reason) + '</div>' +
+      '<div style="margin-top:4px">原因：' + esc(l.reason) + (l.proxy ? '　代理人：' + esc(l.proxy) : '') + '</div>' +
       '<div class="muted">申請 ' + esc(l.at) + (l.by ? '・' + esc(l.by) + ' ' + esc(l.byAt) + ' ' + esc(l.status) : '') + (l.note ? '・說明：' + esc(l.note) : '') + '</div></div>';
   };
-  var html = schTabs() + '<div class="notice"><b>請假</b>請盡量在 <b style="display:inline;font-size:inherit">1 週前</b>提出並寫原因，由管理員或主管核可後才算請假成功。<div style="margin-top:8px"><button class="btn p" onclick="leaveForm()">申請請假</button></div></div>';
+  var html = schTabs() + '<div class="notice"><b>請假</b>請盡量在 <b style="display:inline;font-size:inherit">1 週前</b>提出，選假別、代理人並寫原因，由管理員或主管核可後才算請假成功。<div style="margin-top:8px"><button class="btn p" onclick="leaveForm()">申請請假</button></div></div>';
   if (pending.length) html += '<div class="card"><h2>待核可<span class="tag bad">' + pending.length + '</span></h2>' + pending.map(function (l) { return row(l, true); }).join('') + '</div>';
   html += '<div class="card"><h2>' + (admin ? '全部請假紀錄' : '我的請假紀錄') + '</h2>';
   if (admin) {
@@ -903,32 +999,47 @@ function drawLeave() {
   $('main').innerHTML = html;
 }
 function leaveForm(date) {
-  var t = APP.init.today, d = date || addDays(t, 7);
+  var t = APP.init.today, d = date || addDays(t, 7), me = APP.init.me;
+  var h = APP.init.settings['上班時間'].match(/\d{1,2}:\d{2}/g) || ['08:00', '17:30'], pad = function (x) { return x.length < 5 ? '0' + x : x; };
   modal('<h3>申請請假<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<div class="row"><div style="flex:1;min-width:140px"><label class="f">開始日期 *</label><input type="date" id="lvS" class="full" min="' + t + '" value="' + d + '" onchange="if($(\'lvE\').value<this.value)$(\'lvE\').value=this.value;leaveHint()"></div>' +
-    '<div style="flex:1;min-width:140px"><label class="f">結束日期 *</label><input type="date" id="lvE" class="full" min="' + t + '" value="' + d + '" onchange="leaveHint()"></div></div>' +
+    '<div class="row"><div style="flex:1;min-width:140px"><label class="f">假別 *</label><select id="lvK" class="full">' + APP.init.leaveKinds.map(function (k) { return '<option>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
+    '<div style="flex:1;min-width:140px"><label class="f">代理人 *</label><select id="lvP" class="full"><option value="">請選擇</option>' + APP.init.people.filter(function (p) { return p.active && p.email !== me.email; }).map(function (p) { return '<option value="' + esc(p.email) + '">' + esc(p.name) + '</option>'; }).join('') + '</select></div></div>' +
+    '<label class="f">開始 *</label><div class="row"><input type="date" id="lvS" min="' + t + '" value="' + d + '" style="flex:1;min-width:140px" onchange="if($(\'lvE\').value<this.value)$(\'lvE\').value=this.value;leaveHint()"><input type="time" id="lvSt" step="1800" value="' + pad(h[0]) + '" onchange="leaveHint()"></div>' +
+    '<label class="f">結束 *</label><div class="row"><input type="date" id="lvE" min="' + t + '" value="' + d + '" style="flex:1;min-width:140px" onchange="leaveHint()"><input type="time" id="lvEt" step="1800" value="' + pad(h[1] || '17:30') + '" onchange="leaveHint()"></div>' +
     '<div id="lvHint" style="margin-top:10px"></div>' +
     '<label class="f">請假原因 *</label><textarea id="lvR" maxlength="300"></textarea>' +
-    '<div class="muted" style="margin-top:6px">送出後要等管理員或主管核可，才算請假成功。</div>' +
+    '<div class="muted" style="margin-top:6px">送出後要等管理員或主管核可，才算請假成功；核可後你的班會自動改由代理人上班。</div>' +
     '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" id="lvGo" onclick="leaveSend()">送出申請</button></div>');
   leaveHint();
+}
+/** 算請假時數：只算上班時間內，扣午休（與後端同一套算法，送出後以後端為準） */
+function leaveHoursOf(s, st, e, et) {
+  var hm = function (x) { var p = x.split(':'); return +p[0] * 60 + +p[1]; };
+  var set = APP.init.settings, w = (set['上班時間'] || '').match(/\d{1,2}:\d{2}/g) || ['08:00', '17:30'], l = (set['午休時間'] || '').match(/\d{1,2}:\d{2}/g);
+  var total = 0;
+  for (var d = s; d <= e; d = addDays(d, 1)) {
+    var a = hm(d === s ? st : w[0]), b = hm(d === e ? et : w[1] || '17:30');
+    if (b <= a) continue;
+    total += b - a - (l && l[1] ? Math.max(0, Math.min(b, hm(l[1])) - Math.max(a, hm(l[0]))) : 0);
+  }
+  return Math.round(total / 60 * 100) / 100;
 }
 function leaveHint() {
   var s = $('lvS').value, e = $('lvE').value;
   if (!s || !e) return;
-  var dayN = function (x) { return parseT(x + ' 00:00'); };
-  var left = Math.round((dayN(s) - dayN(APP.init.today)) / 86400000), n = Math.round((dayN(e) - dayN(s)) / 86400000) + 1;
-  $('lvHint').innerHTML = '<div class="muted">共 ' + Math.max(n, 0) + ' 天</div>' + (left < 7 && left >= 0 ? '<div class="notice warn" style="margin:6px 0 0;padding:8px 12px">距離請假日只剩 ' + left + ' 天，未滿 1 週。還是可以送出，但請盡早告知主管。</div>' : '');
+  var left = Math.round((parseT(s + ' 00:00') - parseT(APP.init.today + ' 00:00')) / 86400000);
+  $('lvHint').innerHTML = '<div class="muted">共 ' + (e >= s ? leaveHoursOf(s, $('lvSt').value, e, $('lvEt').value) : 0) + ' 小時</div>' + (left < 7 && left >= 0 ? '<div class="notice warn" style="margin:6px 0 0;padding:8px 12px">距離請假日只剩 ' + left + ' 天，未滿 1 週。還是可以送出，但請盡早告知主管。</div>' : '');
 }
 function leaveSend() {
+  if (!$('lvP').value) return toast('請選代理人', true);
   if (!$('lvR').value.trim()) return toast('請填寫請假原因', true);
   $('lvGo').disabled = true;
-  api('api_applyLeave', { start: $('lvS').value, end: $('lvE').value, reason: $('lvR').value }).then(function () {
+  api('api_applyLeave', { kind: $('lvK').value, proxy: $('lvP').value, start: $('lvS').value, startTime: $('lvSt').value, end: $('lvE').value, endTime: $('lvEt').value, reason: $('lvR').value }).then(function () {
     closeModal(); toast('已送出，等待核可'); APP.schSub = 'leave'; pageSchedule();
   }).catch(function () { if ($('lvGo')) $('lvGo').disabled = false; });
 }
 function leaveApprove(id) {
-  if (!confirm('確定核可這筆請假？這位人員在這段日期的班會從班表移除。')) return;
+  if (!confirm('確定核可這筆請假？這段時間的班會改由代理人上班。')) return;
   api('api_reviewLeave', id, 'approve', '').then(function (r) {
     toast(r.gaps.length ? '已核可。' + r.gaps.map(md).join('、') + ' 現在沒有人上班，請到「排班」指派' : '已核可', !!r.gaps.length);
     pageLeave();
@@ -943,14 +1054,10 @@ function leaveCancel(id, st) {
   if (!confirm(st === '已核可' ? '確定取消這筆已核可的請假？原本的班不會自動排回，請到「排班」重新指派。' : '確定取消這筆請假申請？')) return;
   api('api_cancelLeave', id).then(function () { toast('已取消'); pageLeave(); });
 }
-function adminSelfOff(date, on) {
-  var reason = on ? '' : (prompt('原因（選填）') || '');
-  api('api_toggleUnavail', date, reason).then(function () { closeModal(); toast(on ? '已取消' : '已登記'); pageSchedule(); });
-}
 function windowForm() {
   var w = APP.sch.window;
   modal('<h3>' + esc(APP.sch.month) + ' 登記期間<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<p class="muted">這段期間每天早上 9 點，系統會寄信提醒還沒登記的人，直到他按「我登記好了」或「我都可以，聽安排」。截止隔天早上系統會自動預排班表並通知你。</p>' +
+    '<p class="muted">這段期間每天早上 9 點，系統會寄信提醒還沒回覆的人，直到他按「我填好了」或「我都可以，聽安排」。截止隔天早上會寄信通知你排班。</p>' +
     '<div class="row"><div><label class="f">開始</label><input type="date" id="wS" value="' + w.start + '"></div><div><label class="f">截止</label><input type="date" id="wE" value="' + w.end + '"></div></div>' +
     '<div class="muted" style="margin-top:6px">預設值在「管理 → 設定」的「登記開始日」「不可上班日登記截止日」。設定的期間包含今天時，會馬上寄一封「開放登記」通知。</div>' +
     '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="windowSave()">儲存</button></div>');
@@ -959,16 +1066,19 @@ function windowSave() {
   api('api_setWindow', APP.sch.month, val('wS'), val('wE')).then(function () { closeModal(); toast('已設定登記期間'); pageSchedule(); });
 }
 function saveShift(date) {
-  var who = Array.prototype.map.call(document.querySelectorAll('input[name=shWho]:checked'), function (c) { return c.value; });
+  var who = Array.prototype.map.call(document.querySelectorAll('input[name=shWho]:checked'), function (c) {
+    var i = c.getAttribute('data-i');
+    return { email: c.value, start: val('shS' + i), end: val('shE' + i) };
+  });
   api('api_setShift', date, who, val('shNote')).then(function () { closeModal(); toast('已更新'); pageSchedule(); });
 }
 function autoSchedule() {
   var d = APP.sch;
   var notYet = d.staff.filter(function (p) { return !d.confirms.some(function (c) { return c.email === p.email; }); });
-  var msg = '依大家登記的日子重新自動排 ' + d.month + ' 的班？（手動指定的日子會保留）' + (notYet.length ? '\n\n注意：' + notYet.map(function (p) { return p.name; }).join('、') + ' 還沒登記好。' : '');
+  var msg = '依大家填的時段自動帶入 ' + d.month + ' 的班當作草稿？（每天 1 人；手動指派的日子會保留，之後可以再調整）' + (notYet.length ? '\n\n注意：' + notYet.map(function (p) { return p.name; }).join('、') + ' 還沒回覆，沒填時段的人會視為都可以。' : '');
   if (!confirm(msg)) return;
   api('api_autoSchedule', d.month, true).then(function (r) {
-    toast(r.gaps.length ? '排好了，但有 ' + r.gaps.length + ' 天大家都不能上班（紅框），請手動處理' : '排好了，確認沒問題後按「發布」');
+    toast(r.gaps.length ? '帶入了，但有 ' + r.gaps.length + ' 天沒有人可以上班（紅框），請手動處理' : '帶入了，確認沒問題後按「發布」');
     pageSchedule();
   });
 }
@@ -980,8 +1090,8 @@ function publishSchedule() {
 }
 function printSchedule() {
   var d = APP.sch, s = APP.init.settings;
-  var rows = d.days.map(function (x) { return '<tr><td>' + md(x.date) + '</td><td>' + WD[x.wd] + '</td><td>' + esc(x.name || '（缺人）') + '</td><td>' + esc(x.note) + '</td></tr>'; }).join('');
-  var stat = d.staff.map(function (p) { return esc(p.name) + ' ' + (d.stats[p.email] || 0) + ' 天'; }).join('　');
+  var rows = d.days.map(function (x) { return '<tr><td>' + md(x.date) + '</td><td>' + WD[x.wd] + '</td><td>' + esc(x.label || x.name || '（缺人）') + '</td><td>' + esc(x.note) + '</td></tr>'; }).join('');
+  var stat = d.staff.map(function (p) { return esc(p.name) + ' ' + (d.stats[p.email] || 0) + ' 天 ' + (d.hours[p.email] || 0) + ' 小時'; }).join('　');
   printHtml('<h2>' + esc(s['系統名稱']) + '　' + esc(d.month) + ' 駐點班表</h2><p>上班時間：' + esc(s['上班時間']) + '　狀態：' + esc(d.status) + '</p>' +
     '<table><tr><th>日期</th><th>星期</th><th>值班</th><th>備註</th></tr>' + rows + '</table><p>' + stat + '</p>');
 }
@@ -1000,7 +1110,7 @@ function pageTickets() {
     $('tkBody').innerHTML = '<div class="card"><h2>' +
       '<select onchange="APP.tkFilter=this.value;pageTickets()"><option value="open">未結案</option>' +
       months.map(function (m) { return '<option value="' + m + '"' + (APP.tkFilter === m ? ' selected' : '') + '>' + m + ' 全部</option>'; }).join('') + '</select>' +
-      '<span class="sp"></span><button class="btn p" onclick="ticketForm()">新增叫修</button></h2>' + ticketList(list) + '</div>' + reportLinkCard();
+      '<span class="sp"></span><button class="btn p" onclick="ticketForm()">新增叫修</button></h2>' + ticketList(list) + '</div>' + slaCard() + reportLinkCard();
   });
 }
 function reportLinkCard() {
@@ -1016,44 +1126,78 @@ function copyText(id) {
   try { navigator.clipboard.writeText(e.value).then(function () { toast('已複製'); }, function () { document.execCommand('copy'); toast('已複製'); }); }
   catch (x) { document.execCommand('copy'); toast('已複製'); }
 }
+/** 等級與時限對照 */
+function slaCard() {
+  var sla = APP.init.sla;
+  return '<div class="card"><h2>故障等級與完修時限</h2><div class="tw"><table class="t"><tr><th>等級</th><th>狀況</th><th>回覆時限</th><th>完修時限</th></tr>' +
+    ['1', '2', '3'].map(function (l) { return '<tr><td>' + lvTag(l) + '</td><td>' + esc(sla[l].desc) + '</td><td style="white-space:nowrap">' + fmtMin(sla[l].reply) + '</td><td style="white-space:nowrap">' + fmtMin(sla[l].fix) + '</td></tr>'; }).join('') + '</table></div></div>';
+}
+function dueCell(due, at, late) {
+  if (at) return '<span class="tag ' + (late ? 'bad' : 'ok') + '">' + (late ? '逾期 ' : '') + esc(at.slice(5)) + '</span><div class="muted">限 ' + esc(due.slice(5)) + '</div>';
+  return esc(due.slice(5)) + '<div>' + remain(due) + '</div>';
+}
 function ticketList(list) {
   if (!list.length) return '<div class="empty">沒有叫修單</div>';
   APP.tickets = list;
-  return list.map(function (t) {
+  var table = '<div class="only-wide"><div class="tw"><table class="t tkt"><tr><th>編號</th><th>等級</th><th>設備／位置</th><th>故障</th><th>通報</th><th>狀態</th><th>回覆期限</th><th>完修期限</th></tr>' +
+    list.map(function (t) {
+      return '<tr onclick="ticketDetail(\'' + t.id + '\')"><td style="white-space:nowrap">' + esc(t.id) + '</td><td>' + lvTag(t.level) + '</td><td>' + esc(t.equip) + (t.loc ? '<div class="muted">' + esc(t.loc) + '</div>' : '') + '</td>' +
+        '<td class="sy">' + esc(t.symptom) + '</td><td style="white-space:nowrap">' + esc(t.at.slice(5)) + '<div class="muted">' + esc(t.unit || t.reporter) + '</div></td><td>' + stTag(t.status) + '</td>' +
+        '<td style="white-space:nowrap">' + dueCell(t.replyDue, t.replyAt, t.replyLate) + '</td><td style="white-space:nowrap">' + dueCell(t.fixDue, t.fixAt, t.fixLate) + '</td></tr>';
+    }).join('') + '</table></div></div>';
+  return table + '<div class="only-narrow">' + list.map(function (t) {
     var due = '';
     if (t.status === '待回覆') due = remain(t.replyDue);
     else if (t.status === '處理中') due = remain(t.fixDue);
     else due = stTag(t.status);
     return '<div class="tk" onclick="ticketDetail(\'' + t.id + '\')"><span class="bar l' + t.level + '"></span><div class="bd">' +
-      '<div class="t1"><b>' + esc(t.equip) + '</b><span class="muted">' + esc(t.loc) + '</span><span class="sp"></span>' + due + '</div>' +
+      '<div class="t1">' + lvTag(t.level) + '<b>' + esc(t.equip) + '</b><span class="muted">' + esc(t.loc) + '</span><span class="sp"></span>' + due + '</div>' +
       '<div class="sym">' + esc(t.symptom) + '</div>' +
-      '<div class="muted">' + (t.status === '待回覆' || t.status === '處理中' ? esc(t.status) + '・' : '') + esc(t.at.slice(5)) + '・' + esc(t.reporter) + (t.unit ? '（' + esc(t.unit) + '）' : '') + '</div></div></div>';
-  }).join('');
+      '<div class="muted">' + (t.status === '待回覆' || t.status === '處理中' ? esc(t.status) + '・' : '') + esc(t.at.slice(5)) + '・' + esc(t.unit || t.reporter) + '・完修限 ' + esc(t.fixDue.slice(5)) + '</div></div></div>';
+  }).join('') + '</div>';
 }
 function ticketForm() {
-  var n = nowStr().replace(' ', 'T'), sla = APP.init.sla;
+  var n = nowStr().replace(' ', 'T'), sla = APP.init.sla, m = APP.init.menu;
   modal('<h3>新增叫修單<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<label class="f">通報時間（＝期限起算時間）</label><input type="datetime-local" id="tkAt" value="' + n + '">' +
-    '<div class="row"><div style="flex:1;min-width:140px"><label class="f">通報人</label><input id="tkRep" class="full" value="' + esc(APP.init.me.name) + '"></div>' +
-    '<div style="flex:1;min-width:140px"><label class="f">單位</label><input id="tkUnit" class="full" placeholder="例：浯江售票組"></div>' +
-    '<div style="flex:1;min-width:140px"><label class="f">電話</label><input id="tkPhone" class="full"></div></div>' +
-    '<label class="f">設備或系統 *</label><div class="chips">' + APP.init.equip.map(function (e, i) { return '<label><input type="radio" name="tkEq" value="' + esc(e) + '"><span>' + esc(e) + '</span></label>'; }).join('') + '</div>' +
-    '<label class="f">設備位置／編號</label><input id="tkLoc" class="full" placeholder="例：A2 櫃台、自助機 3 號、閘門 2">' +
-    '<label class="f">故障現象 *</label><textarea id="tkSym" placeholder="看到什麼畫面、哪個步驟出錯、影響多少旅客"></textarea>' +
+    '<div class="row"><div style="flex:1;min-width:160px"><label class="f">通報單位</label><select id="tkUnit" class="full" onchange="tkUnitPick()"><option value="">請選擇</option>' + m.units.map(function (u) { return '<option value="' + esc(u.name) + '">' + esc(u.name) + '</option>'; }).join('') + '</select></div>' +
+    '<div style="flex:1;min-width:130px"><label class="f">電話（選單位自動帶出）</label><input id="tkPhone" class="full"></div></div>' +
+    '<label class="f">設備或系統 *</label><div class="chips">' + APP.init.equip.map(function (e) { return '<label><input type="radio" name="tkEq" value="' + esc(e) + '" onchange="tkCauses()"><span>' + esc(e) + '</span></label>'; }).join('') + '</div>' +
+    '<label class="f">故障原因 *</label><div class="chips" id="tkCa"></div>' +
+    '<textarea id="tkSym" style="margin-top:8px;display:none" placeholder="請說明發生什麼問題"></textarea>' +
     '<label class="f">故障等級 *</label>' + ['1', '2', '3'].map(function (l) {
       return '<label class="lvbox"><input type="radio" name="tkLv" value="' + l + '"' + (l === '2' ? ' checked' : '') + '><div>' + lvTag(l) + ' ' + esc(sla[l].desc) +
-        '<div class="muted">回覆 ' + fmtMin(sla[l].reply) + ' 內・排除 ' + fmtMin(sla[l].fix) + ' 內</div></div></label>';
+        '<div class="muted">回覆 ' + fmtMin(sla[l].reply) + ' 內・完修 ' + fmtMin(sla[l].fix) + ' 內</div></div></label>';
     }).join('') +
-    '<label class="f">照片（可多張）</label><input type="file" id="tkPh" accept="image/*" multiple>' +
+    '<details style="margin-top:12px"><summary class="muted" style="cursor:pointer">其他（位置、通報人、時間、照片）</summary>' +
+    '<label class="f">設備位置／編號</label><input id="tkLoc" class="full" placeholder="例：A2 櫃台、自助機 3 號、閘門 2">' +
+    '<label class="f">通報人</label><input id="tkRep" class="full" value="' + esc(APP.init.me.name) + '">' +
+    '<label class="f">通報時間（＝期限起算時間）</label><input type="datetime-local" id="tkAt" value="' + n + '">' +
+    '<label class="f">照片（可多張）</label><input type="file" id="tkPh" accept="image/*" multiple></details>' +
     '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" id="tkSave" onclick="saveTicket()">送出並通知</button></div>');
+  tkCauses();
+}
+function tkUnitPick() {
+  var u = APP.init.menu.units.filter(function (x) { return x.name === $('tkUnit').value; })[0];
+  $('tkPhone').value = u ? u.phone : '';
+}
+function tkCauses() {
+  var eq = document.querySelector('input[name=tkEq]:checked'), name = eq ? eq.value : '';
+  var list = APP.init.menu.causes.filter(function (c) { return !c.equip.length || c.equip.indexOf(name) >= 0; }).map(function (c) { return c.name; });
+  $('tkCa').innerHTML = list.concat(['其他']).map(function (c) { return '<label><input type="radio" name="tkC" value="' + esc(c) + '" onchange="tkCauseOther()"><span>' + esc(c) + '</span></label>'; }).join('');
+  tkCauseOther();
+}
+function tkCauseOther() {
+  var c = document.querySelector('input[name=tkC]:checked');
+  $('tkSym').style.display = c && c.value === '其他' ? 'block' : 'none';
 }
 function saveTicket() {
   var eq = document.querySelector('input[name=tkEq]:checked'), lv = document.querySelector('input[name=tkLv]:checked');
   if (!eq) return toast('請選擇設備或系統', true);
-  if (!val('tkSym')) return toast('請填寫故障現象', true);
+  var ca = document.querySelector('input[name=tkC]:checked'), cause = ca ? ca.value : '';
+  if ((!cause || cause === '其他') && !val('tkSym')) return toast(cause ? '請說明發生什麼問題' : '請選擇故障原因', true);
   $('tkSave').disabled = true;
   uploadFiles($('tkPh')).then(function (ids) {
-    return api('api_createTicket', { at: val('tkAt').replace('T', ' '), reporter: val('tkRep'), unit: val('tkUnit'), phone: val('tkPhone'), equip: eq.value, loc: val('tkLoc'), symptom: val('tkSym'), level: lv.value, photos: ids });
+    return api('api_createTicket', { at: val('tkAt').replace('T', ' '), reporter: val('tkRep'), unit: val('tkUnit'), phone: val('tkPhone'), equip: eq.value, loc: val('tkLoc'), cause: cause, symptom: cause && cause !== '其他' ? cause : val('tkSym'), level: lv.value, photos: ids });
   }).then(function (id) { closeModal(); toast('已建立 ' + id + ' 並寄信通知'); go(APP.page); })
     .catch(function () { if ($('tkSave')) $('tkSave').disabled = false; });
 }
@@ -1085,12 +1229,15 @@ function ticketDetail(id) {
 }
 function tkAct(id, action) {
   var t = APP.tickets.filter(function (x) { return x.id === id; })[0];
+  if (action === 'fix' && !APP._parts) return api('api_listStock').then(function (r) { APP._parts = r.items.filter(function (x) { return x.active && x.qty > 0; }); tkAct(id, action); APP._parts = null; });
   var titles = { reply: '回覆處理方式', note: '新增處理紀錄', fix: '已排除', close: '機關確認・結案', event: '第一級事件報告', photo: '補照片' };
   var body = '';
   if (action === 'reply') body = '<label class="f">回覆內容（處理方式、預計排除時間）</label><textarea id="aTxt">已受理，處理中，預計 ' + t.fixDue.slice(11) + ' 前排除</textarea>';
   if (action === 'note') body = '<label class="f">處理內容</label><textarea id="aTxt"></textarea>';
   if (action === 'fix') body = '<label class="f">排除時間</label><input type="datetime-local" id="aAt" value="' + nowStr().replace(' ', 'T') + '">' +
-    '<label class="f">處理方式／原因</label><textarea id="aTxt"></textarea><label class="f">是否提供備品（沒有就空白）</label><input id="aSpare" class="full" placeholder="例：閘門顯示螢幕備品 1 個">';
+    '<label class="f">處理方式／原因</label><textarea id="aTxt"></textarea>' +
+    '<label class="f">用了庫存的備品耗材（會自動扣庫存，沒有就不選）</label><div class="row"><select id="aPart" style="flex:1;min-width:160px"><option value="">不使用</option>' + APP._parts.map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name) + '（剩 ' + x.qty + ' ' + esc(x.unit) + '）</option>'; }).join('') + '</select><input id="aPartQ" type="number" min="1" value="1" style="width:80px"></div>' +
+    '<label class="f">其他備品說明（選填）</label><input id="aSpare" class="full" placeholder="例：機關提供閘門顯示螢幕 1 個">';
   if (action === 'close') body = '<p class="muted">請機關人員確認已恢復正常。</p><label class="f">機關確認人 *</label><input id="aConf" class="full">' +
     '<label style="display:block;margin-top:10px"><input type="checkbox" id="aFaq"> 把這筆加入 SOP「常見問題」，以後遇到可以照著做</label>';
   if (action === 'event') body = '<label class="f">原因、影響、處置、預防措施（48 小時內提出）</label><textarea id="aTxt" style="min-height:160px">' + esc(t.eventReport || '原因：\n影響：\n處置：\n預防措施：') + '</textarea>';
@@ -1099,7 +1246,7 @@ function tkAct(id, action) {
     '<div class="foot"><button class="btn" onclick="ticketDetail(\'' + id + '\')">返回</button><button class="btn p" id="aGo" onclick="tkGo(\'' + id + '\',\'' + action + '\')">送出</button></div>');
 }
 function tkGo(id, action) {
-  var data = { text: val('aTxt'), spare: val('aSpare'), confirmBy: val('aConf'), toFaq: $('aFaq') && $('aFaq').checked, fixAt: val('aAt').replace('T', ' ') };
+  var data = { text: val('aTxt'), spare: val('aSpare'), confirmBy: val('aConf'), toFaq: $('aFaq') && $('aFaq').checked, fixAt: val('aAt').replace('T', ' '), parts: $('aPart') && $('aPart').value ? [{ id: $('aPart').value, qty: Number(val('aPartQ')) || 1 }] : [] };
   $('aGo').disabled = true;
   var p = action === 'photo' ? uploadFiles($('aPh')).then(function (ids) { data.photos = ids; }) : Promise.resolve();
   p.then(function () { return api('api_ticketAction', id, action, data); })
@@ -1196,21 +1343,34 @@ function drawInsp() {
       '<span class="sp"></span>' + (st.done && !editing ? '<span class="muted" style="font-weight:normal">' + esc(st.by) + ' ' + esc(st.at.slice(5)) + '</span><button class="btn sm ghost" onclick="APP.inspEdit=\'' + f + '\';drawInsp()">重填</button><button class="btn sm ghost" onclick="printInspNow(\'' + f + '\')">列印</button>' : '') +
       (editing ? '<button class="btn sm ghost" onclick="allOk(\'' + f + '\')">全部正常</button>' : '') + '</h2>';
     if (f === '保固期滿前') html += '<div class="muted">保固期滿日：' + esc(r.warrantyEnd || '（未設定，請主管到「管理 → 設定」填寫）') + '</div>';
+    var curMajor = null, curArea = null;
     items.forEach(function (it) {
       var prev = last.filter(function (x) { return x.itemId === it.id; })[0];
+      var head = '';
+      if (it.major !== curMajor) { head += '<div class="major">' + esc(it.major) + '</div>'; curMajor = it.major; curArea = null; }
+      if (it.area !== curArea) { head += '<div class="minor">' + esc(it.area) + '</div>'; curArea = it.area; }
       if (!editing) { // 完成後只列出異常項目
         var abn = prev && prev.result === '異常';
-        if (abn || it.atts.length) html += '<div class="chk"><div><b>' + esc(it.area) + '</b><div class="muted">' + esc(it.item) + '</div>' + (abn && prev.note ? '<div>說明：' + esc(prev.note) + '</div>' : '') + attList(it.atts) + '</div>' +
-          '<div>' + (abn ? '<span class="tag bad">異常</span>' : '') + '</div></div>';
+        if (abn || it.atts.length) {
+          var bad = abn ? (prev.checks || []).filter(function (c) { return !c.ok; }).map(function (c) { return c.t; }) : [];
+          html += head + '<div class="chk"><div><b>' + esc(it.item) + '</b>' + (bad.length ? '<div style="color:var(--bad)">' + bad.map(esc).join('、') + '</div>' : '') + (abn && prev.note ? '<div>說明：' + esc(prev.note) + '</div>' : '') + attList(it.atts) + '</div>' +
+            '<div>' + (abn ? '<span class="tag bad">異常</span>' : '') + '</div></div>';
+        }
         return;
       }
-      var dv = APP.inspDraft[it.id] || (APP.inspDraft[it.id] = { id: it.id, result: '', note: '', ticket: true, level: '2' });
-      if (!dv.result && prev && APP.inspEdit === f) { dv.result = prev.result; dv.note = prev.note; dv.ticket = false; }
-      html += '<div class="chk' + (dv.result === '異常' ? ' abn' : '') + '" id="ck_' + it.id + '"><div><b>' + esc(it.area) + '</b><div class="muted">' + esc(it.item) + '</div>' + attList(it.atts) + '</div>' +
+      var dv = APP.inspDraft[it.id];
+      if (!dv) {
+        dv = APP.inspDraft[it.id] = { id: it.id, result: '', note: '', level: '2', checks: it.checks.map(function (t) { return { t: t, ok: true }; }) };
+        if (prev && APP.inspEdit === f) {
+          dv.result = prev.result; dv.note = prev.note;
+          (prev.checks || []).forEach(function (c) { dv.checks.forEach(function (x) { if (x.t === c.t) x.ok = c.ok; }); });
+        }
+      }
+      html += head + '<div class="chk' + (dv.result === '異常' ? ' abn' : '') + '" id="ck_' + it.id + '"><div><b>' + esc(it.item) + '</b>' +
+        dv.checks.map(function (c, i) { return '<label class="ln"><input type="checkbox"' + (c.ok ? ' checked' : '') + ' onchange="setLine(\'' + it.id + '\',' + i + ',this.checked)"><span>' + esc(c.t) + '</span></label>'; }).join('') + attList(it.atts) + '</div>' +
         '<div class="seg"><button class="' + (dv.result === '正常' ? 'on-ok' : '') + '" onclick="setChk(\'' + it.id + '\',\'正常\')">正常</button><button class="' + (dv.result === '異常' ? 'on-bad' : '') + '" onclick="setChk(\'' + it.id + '\',\'異常\')">異常</button></div>' +
-        '<div class="ext"><input class="full" placeholder="異常說明（必填）" value="' + esc(dv.note) + '" oninput="APP.inspDraft[\'' + it.id + '\'].note=this.value">' +
-        '<label><input type="checkbox"' + (dv.ticket ? ' checked' : '') + ' onchange="APP.inspDraft[\'' + it.id + '\'].ticket=this.checked"> 同時開叫修單</label>' +
-        '<select onchange="APP.inspDraft[\'' + it.id + '\'].level=this.value">' + ['1', '2', '3'].map(function (l) { return '<option value="' + l + '"' + (dv.level === l ? ' selected' : '') + '>' + APP.init.sla[l].name + '</option>'; }).join('') + '</select></div></div>';
+        '<div class="ext"><input class="full" placeholder="異常說明" value="' + esc(dv.note) + '" oninput="APP.inspDraft[\'' + it.id + '\'].note=this.value">' +
+        '<span class="muted">送出後自動開叫修單，等級：</span><select onchange="APP.inspDraft[\'' + it.id + '\'].level=this.value">' + ['1', '2', '3'].map(function (l) { return '<option value="' + l + '"' + (dv.level === l ? ' selected' : '') + '>' + APP.init.sla[l].name + '</option>'; }).join('') + '</select></div></div>';
     });
     if (editing) {
       var conf = last.length ? last[0].confirmBy : '';
@@ -1222,8 +1382,16 @@ function drawInsp() {
   });
   $('inBody').innerHTML = html;
 }
+/** 取消勾選一條檢查內容＝這個項目異常；全部勾回去不會自動改回正常，由人確認 */
+function setLine(id, i, ok) {
+  APP.inspDraft[id].checks[i].ok = ok;
+  APP.dirty = true;
+  if (!ok) setChk(id, '異常');
+}
 function setChk(id, v) {
-  APP.inspDraft[id].result = v;
+  var dv = APP.inspDraft[id];
+  dv.result = v;
+  if (v === '正常') { dv.checks.forEach(function (c) { c.ok = true; }); Array.prototype.forEach.call($('ck_' + id).querySelectorAll('.ln input'), function (c) { c.checked = true; }); }
   var el = $('ck_' + id), b = el.querySelectorAll('.seg button');
   b[0].className = v === '正常' ? 'on-ok' : ''; b[1].className = v === '異常' ? 'on-bad' : '';
   el.classList.toggle('abn', v === '異常');
@@ -1239,24 +1407,24 @@ function submitInsp(f) {
   var res = items.map(function (i) { return APP.inspDraft[i.id]; });
   var miss = res.filter(function (x) { return !x.result; });
   if (miss.length) return toast('還有 ' + miss.length + ' 項沒勾', true);
-  if (res.some(function (x) { return x.result === '異常' && !x.note.trim(); })) return toast('異常項目請填說明', true);
+  if (res.some(function (x) { return x.result === '異常' && !x.note.trim() && x.checks.every(function (c) { return c.ok; }); })) return toast('異常項目請取消勾選有問題的內容，或填說明', true);
   api('api_submitInspection', f, APP.insp.date, res, val('conf_' + f)).then(function (r) {
     APP.inspEdit = null;
-    toast(f + '巡檢已送出' + (r.abnormal ? '，異常 ' + r.abnormal + ' 項已通知主管' : '') + (r.tickets.length ? '，已開叫修單 ' + r.tickets.join('、') : ''));
+    toast(f + '巡檢已送出' + (r.abnormal ? '，異常 ' + r.abnormal + ' 項已通知主管' : '') + (r.tickets.length ? '，已自動開叫修單 ' + r.tickets.join('、') : ''));
     pageInsp();
   });
 }
 function inspPrintHtml(freq, label, by, at, confirmBy, rows) {
   return '<h2>駐點' + freq + '巡檢表</h2><p>期別：' + esc(label) + '　巡檢人：' + esc(by) + '　巡檢時間：' + esc(at) + '</p>' +
-    '<table><tr><th>區域</th><th>檢查項目</th><th>正常</th><th>異常</th><th>說明</th></tr>' +
-    rows.map(function (x) { return '<tr><td>' + esc(x.area) + '</td><td>' + esc(x.item) + '</td><td>' + (x.result === '正常' ? '■' : '□') + '</td><td>' + (x.result === '異常' ? '■' : '□') + '</td><td>' + esc(x.note) + '</td></tr>'; }).join('') +
+    '<table><tr><th>大項</th><th>中項</th><th>小項與檢查內容</th><th>正常</th><th>異常</th><th>說明</th></tr>' +
+    rows.map(function (x) { return '<tr><td>' + esc(x.major || '') + '</td><td>' + esc(x.area) + '</td><td>' + esc(x.item) + (x.checks || []).map(function (c) { return '<br>' + (c.ok ? '■ ' : '□ ') + esc(c.t); }).join('') + '</td><td>' + (x.result === '正常' ? '■' : '□') + '</td><td>' + (x.result === '異常' ? '■' : '□') + '</td><td>' + esc(x.note) + '</td></tr>'; }).join('') +
     '</table><p style="margin-top:24px">機關確認：' + esc(confirmBy || '＿＿＿＿＿＿＿＿') + '</p>';
 }
 function printInspNow(f) {
   var r = APP.insp, st = r.status[f];
   var rows = r.items.filter(function (i) { return i.freq === f; }).map(function (i) {
     var p = r.last[f].filter(function (x) { return x.itemId === i.id; })[0] || {};
-    return { area: i.area, item: i.item, result: p.result, note: p.note };
+    return { major: i.major, area: i.area, item: i.item, result: p.result, note: p.note, checks: p.checks };
   });
   printHtml(inspPrintHtml(f, st.label, st.by, st.at, r.last[f][0] && r.last[f][0].confirmBy, rows));
 }
@@ -1349,11 +1517,11 @@ function sopDel(id) { if (confirm('確定刪除這份文件？（附件連結也
 
 /* ---------- 管理（主管） ---------- */
 function pageAdmin() {
-  var subs = [['people', '帳號'], ['settings', '設定'], ['sop', 'SOP'], ['items', '巡檢項目'], ['report', '月維護報告']];
+  var subs = [['stats', '工時請假統計'], ['people', '帳號'], ['settings', '設定'], ['sop', 'SOP'], ['items', '巡檢項目'], ['menu', '叫修選單'], ['report', '月維護報告']];
   $('main').innerHTML = '<div class="sub">' + subs.map(function (s) { return '<button class="' + (APP.adminSub === s[0] ? 'on' : '') + '" onclick="APP.adminSub=\'' + s[0] + '\';pageAdmin()">' + s[1] + '</button>'; }).join('') + '</div><div id="adBody">' + LOADER + '</div>';
-  ({ people: adPeople, settings: adSettings, sop: adSop, items: adItems, report: adReport })[APP.adminSub]();
+  ({ people: adPeople, settings: adSettings, sop: adSop, items: adItems, report: adReport, stats: adStats, menu: adMenu })[APP.adminSub]();
 }
-var ROLE_DESC = { '管理員': '全部功能，含帳號管理', '主管': '排班、核可請假、發布、SOP 編輯、月報、設定（不能管帳號）', '駐點': '登記不能上班日、請假、巡檢、叫修、讀 SOP' };
+var ROLE_DESC = { '管理員': '全部功能，含帳號管理', '主管': '排班、核可請假、發布、交辦、統計、SOP 編輯、月報、設定（不能管帳號）', '駐點': '填可上班時段、請假、巡檢、叫修、交辦回報、讀 SOP' };
 function adPeople() {
   var ps = APP.init.people, owner = APP.init.me.isOwner;
   $('adBody').innerHTML = '<div class="card"><h2>帳號<span class="sp"></span>' + (owner ? '<button class="btn p" onclick="personForm()">新增帳號</button>' : '') + '</h2>' +
@@ -1401,8 +1569,8 @@ function personDel(email) {
   api('api_deletePerson', email).then(function (ps) { APP.init.people = ps; closeModal(); toast('已刪除'); adPeople(); });
 }
 function adSettings() {
-  var s = APP.init.settings, keys = ['系統名稱', '上班時間', '登記開始日', '不可上班日登記截止日', '最多連續上班天數', '偏好連續天數', '巡檢逾期提醒時間', '明日值班提醒時間', '保固期滿日', '保固服務專線', '系統網址', '檔案資料夾ID', '登入有效天數'];
-  var tips = { '登記開始日': '每月幾號開始登記下個月（預設值，班表頁可逐月調整）', '不可上班日登記截止日': '每月幾號截止，隔天系統自動預排', '最多連續上班天數': '自動排班上限', '偏好連續天數': '1＝每天輪替；2＝兩天一換', '巡檢逾期提醒時間': '24 小時制，例 11', '明日值班提醒時間': '24 小時制，例 17', '保固期滿日': 'yyyy-MM-dd', '保固服務專線': '顯示在報修頁與 SOP', '系統網址': '部署後的 /exec 網址（空白自動抓）', '檔案資料夾ID': '雲端硬碟資料夾網址 folders/ 後面那串', '登入有效天數': '登入後幾天內不用重新登入' };
+  var s = APP.init.settings, keys = ['系統名稱', '上班時間', '登記開始日', '不可上班日登記截止日', '最多連續上班天數', '偏好連續天數', '巡檢逾期提醒時間', '明日值班提醒時間', '保固期滿日', '保固服務專線', '系統網址', '檔案資料夾ID', '登入有效天數', '午休時間', '假別', '交辦人選項'];
+  var tips = { '午休時間': '算工時與請假時數時扣除，不扣就留空白', '假別': '用逗號分開', '交辦人選項': '用逗號分開', '登記開始日': '每月幾號開始登記下個月（預設值，排班頁可逐月調整）', '不可上班日登記截止日': '每月幾號截止，隔天寄信通知排班', '最多連續上班天數': '自動排班上限', '偏好連續天數': '1＝每天輪替；2＝兩天一換', '巡檢逾期提醒時間': '24 小時制，例 11', '明日值班提醒時間': '24 小時制，例 17', '保固期滿日': 'yyyy-MM-dd', '保固服務專線': '顯示在報修頁與 SOP', '系統網址': '部署後的 /exec 網址（空白自動抓）', '檔案資料夾ID': '雲端硬碟資料夾網址 folders/ 後面那串', '登入有效天數': '登入後幾天內不用重新登入' };
   $('adBody').innerHTML = '<div class="card"><h2>設定</h2>' + keys.map(function (k, i) {
     return '<label class="f">' + k + (tips[k] ? '（' + tips[k] + '）' : '') + '</label><input class="full" id="st' + i + '" value="' + esc(s[k]) + '">';
   }).join('') + '<div class="foot"><button class="btn p" onclick="saveSettings()">儲存設定</button></div></div>';
@@ -1430,29 +1598,105 @@ function adSop() {
 function adItems() {
   api('api_listInspItems').then(function (items) {
     APP.items = items;
-    $('adBody').innerHTML = '<div class="card"><h2>巡檢項目<span class="sp"></span><button class="btn p" onclick="itemForm()">新增項目</button></h2>' +
-      '<div class="tw"><table class="t"><tr><th>頻率</th><th>區域</th><th>檢查項目</th><th></th></tr>' +
-      items.map(function (it, i) {
-        return '<tr' + (it.active ? '' : ' style="opacity:.5"') + '><td style="white-space:nowrap">' + esc(it.freq) + '</td><td>' + esc(it.area) + '</td><td>' + esc(it.item) + (it.atts.length ? ' <span class="muted">・' + it.atts.length + ' 個附件</span>' : '') + (it.active ? '' : ' <span class="tag">停用</span>') + '</td>' +
-          '<td><button class="btn sm ghost" onclick="itemForm(' + i + ')">編輯</button></td></tr>';
+    var fs = []; items.forEach(function (it) { if (fs.indexOf(it.freq) < 0) fs.push(it.freq); });
+    var shown = items.filter(function (it) { return !APP.itemFreq || it.freq === APP.itemFreq; });
+    $('adBody').innerHTML = '<div class="card"><h2>巡檢項目<select onchange="APP.itemFreq=this.value;adItems()"><option value="">全部週期</option>' + fs.map(function (f) { return '<option' + (APP.itemFreq === f ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('') + '</select><span class="sp"></span><button class="btn p" onclick="itemForm()">新增項目</button></h2>' +
+      '<div class="muted" style="margin-bottom:6px">每個項目可以自己設週期，分大項、中項、小項，小項底下再列檢查內容。巡檢異常會自動開叫修單。</div>' +
+      '<div class="tw"><table class="t"><tr><th>週期</th><th>大項</th><th>中項</th><th>小項</th><th>檢查內容</th><th></th></tr>' +
+      shown.map(function (it) {
+        var i = items.indexOf(it);
+        return '<tr' + (it.active ? '' : ' style="opacity:.5"') + '><td style="white-space:nowrap">' + esc(it.freq) + '</td><td>' + esc(it.major) + '</td><td>' + esc(it.area) + '</td><td>' + esc(it.item) + (it.atts.length ? ' <span class="muted">・' + it.atts.length + ' 個附件</span>' : '') + (it.active ? '' : ' <span class="tag">停用</span>') + '</td><td class="muted">' + it.checks.length + ' 條</td>' +
+          '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="itemForm(' + i + ')">編輯</button></td></tr>';
       }).join('') + '</table></div></div>';
   });
 }
+var ITEM_FREQS = ['每日', '每週', '每月', '每季', '每半年', '每年', '保固期滿前'];
 function itemForm(i) {
-  var it = i == null ? { id: '', freq: '每日', area: '', item: '', order: 99, active: true, atts: [] } : APP.items[i];
+  var it = i == null ? { id: '', freq: APP.itemFreq || '每日', major: '', area: '', item: '', checks: [], order: 99, active: true, atts: [] } : APP.items[i];
+  var custom = ITEM_FREQS.indexOf(it.freq) < 0, n = custom ? it.freq.replace(/\D/g, '') : '';
+  var majors = []; (APP.items || []).forEach(function (x) { if (x.major && x.major !== '未分類' && majors.indexOf(x.major) < 0) majors.push(x.major); });
   modal('<h3>' + (i == null ? '新增巡檢項目' : '編輯巡檢項目') + '<button class="x" onclick="closeModal()">×</button></h3>' +
-    '<label class="f">頻率</label><select id="iF">' + APP.init.freqs.map(function (f) { return '<option' + (f === it.freq ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select>' +
-    '<label class="f">區域 *</label><input id="iA" class="full" value="' + esc(it.area) + '">' +
-    '<label class="f">檢查項目 *</label><input id="iI" class="full" value="' + esc(it.item) + '">' +
+    '<label class="f">週期</label><div class="row"><select id="iF" onchange="$(\'iNBox\').style.display=this.value===\'custom\'?\'flex\':\'none\'">' + ITEM_FREQS.map(function (f) { return '<option' + (f === it.freq ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '<option value="custom"' + (custom ? ' selected' : '') + '>自訂天數</option></select>' +
+    '<span id="iNBox" class="row" style="display:' + (custom ? 'flex' : 'none') + '">每 <input id="iN" type="number" min="1" max="999" value="' + esc(n) + '" style="width:80px"> 天</span></div>' +
+    '<label class="f">大項（例：現場設備）</label><input id="iM" class="full" list="iMs" value="' + esc(it.major === '未分類' ? '' : it.major) + '"><datalist id="iMs">' + majors.map(function (m) { return '<option value="' + esc(m) + '">'; }).join('') + '</datalist>' +
+    '<label class="f">中項 *（例：自助機台）</label><input id="iA" class="full" value="' + esc(it.area) + '">' +
+    '<label class="f">小項 *（例：功能檢查）</label><input id="iI" class="full" value="' + esc(it.item) + '">' +
+    '<label class="f">檢查內容（一行一條，巡檢時逐條勾選）</label><textarea id="iC" placeholder="開機正常&#10;證件掃描正常&#10;紙量足夠">' + esc(it.checks.join('\n')) + '</textarea>' +
     '<label class="f">排序</label><input id="iO" type="number" value="' + it.order + '" style="width:100px">' +
     attEditor(it.atts) +
     '<label style="display:block;margin-top:10px"><input type="checkbox" id="iAc"' + (it.active ? ' checked' : '') + '> 啟用</label>' +
-    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="itemSave(\'' + esc(it.id) + '\')">儲存</button></div>');
+    '<div class="foot">' + (it.id ? '<button class="btn bad" style="margin-right:auto" onclick="itemDel(\'' + esc(it.id) + '\')">刪除</button>' : '') + '<button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="itemSave(\'' + esc(it.id) + '\')">儲存</button></div>');
 }
 function itemSave(id) {
   if (APP.attBusy) return toast('檔案還在上傳，請稍等', true);
-  api('api_saveInspItem', { id: id, freq: $('iF').value, area: val('iA'), item: val('iI'), order: val('iO'), active: $('iAc').checked, atts: APP.atts })
-    .then(function () { closeModal(); toast('已儲存'); adItems(); });
+  var f = $('iF').value;
+  if (f === 'custom') { if (!(Number(val('iN')) > 0)) return toast('請填天數', true); f = '每' + Number(val('iN')) + '天'; }
+  api('api_saveInspItem', { id: id, freq: f, major: val('iM'), area: val('iA'), item: val('iI'), checks: $('iC').value, order: val('iO'), active: $('iAc').checked, atts: APP.atts })
+    .then(function () { if (APP.init.freqs.indexOf(f) < 0) APP.init.freqs.push(f); closeModal(); toast('已儲存'); adItems(); });
+}
+function itemDel(id) {
+  if (!confirm('確定刪除這個巡檢項目？（過去的巡檢紀錄會保留；只是暫時不用的話建議改成停用）')) return;
+  api('api_deleteInspItem', id).then(function () { closeModal(); toast('已刪除'); adItems(); });
+}
+/* ---------- 叫修選單 ---------- */
+var MENU_HINT = { '設備': '', '單位': '電話', '故障原因': '適用設備（用逗號分開，空白＝全部設備）' };
+function adMenu() {
+  api('api_listMenu').then(function (rows) { APP.menuRows = rows; drawMenu(); });
+}
+function drawMenu() {
+  $('adBody').innerHTML = '<div class="muted" style="margin-bottom:10px">叫修單和機關報修頁的下拉選項都在這裡維護；「其他」一定會有，選了可以自己打字。</div>' + ['設備', '單位', '故障原因'].map(function (t) {
+    var list = APP.menuRows.filter(function (m) { return m.type === t; });
+    return '<div class="card"><h2>' + t + '<span class="sp"></span><button class="btn sm p" onclick="menuForm(\'' + t + '\')">新增</button></h2>' + (list.length ? list.map(function (m) {
+      return '<div class="kv" style="border-top:1px solid var(--line);padding:9px 0"><span style="color:var(--text)">' + esc(m.name) + (m.active ? '' : ' <span class="tag">停用</span>') + (m.extra ? '<div class="muted">' + esc(m.extra) + '</div>' : (t === '單位' ? '<div class="muted" style="color:var(--warn)">未填電話</div>' : '')) + '</span><button class="btn sm ghost" onclick="menuForm(\'' + t + '\',\'' + esc(m.id) + '\')">編輯</button></div>';
+    }).join('') : '<div class="empty">還沒有選項</div>') + '</div>';
+  }).join('');
+}
+function menuForm(type, id) {
+  var m = id ? APP.menuRows.filter(function (x) { return x.id === id; })[0] : { name: '', extra: '', order: 99, active: true };
+  modal('<h3>' + (id ? '編輯' : '新增') + type + '<button class="x" onclick="closeModal()">×</button></h3><label class="f">名稱 *</label><input id="mN" class="full" value="' + esc(m.name) + '">' +
+    (MENU_HINT[type] ? '<label class="f">' + MENU_HINT[type] + '</label><input id="mX" class="full" value="' + esc(m.extra) + '">' : '') +
+    '<label class="f">排序</label><input id="mO" type="number" value="' + esc(m.order) + '" style="width:100px"><label style="display:block;margin-top:10px"><input type="checkbox" id="mA"' + (m.active ? ' checked' : '') + '> 啟用</label>' +
+    '<div class="foot">' + (id ? '<button class="btn bad" style="margin-right:auto" onclick="menuDel(\'' + esc(id) + '\')">刪除</button>' : '') + '<button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="menuSave(\'' + type + '\',\'' + esc(id || '') + '\')">儲存</button></div>');
+}
+function menuApply(r) { APP.menuRows = r.rows; APP.init.menu = r.menu; APP.init.equip = r.menu.equip.map(function (e) { return e.name; }); closeModal(); toast('已更新'); drawMenu(); }
+function menuSave(type, id) { api('api_saveMenu', { id: id, type: type, name: val('mN'), extra: val('mX'), order: val('mO'), active: $('mA').checked }).then(menuApply); }
+function menuDel(id) { if (confirm('確定刪除這個選項？（已開的叫修單不受影響）')) api('api_deleteMenu', id).then(menuApply); }
+/* ---------- 每月工時與請假統計 ---------- */
+function adStats() {
+  var m = APP.statMonth || APP.init.today.slice(0, 7);
+  api('api_monthStats', m).then(function (r) {
+    APP.stats = r;
+    var body = $('adBody');
+    if (!body) return;
+    var diff = function (x) { var v = Math.round((x.workHours - x.schedHours) * 100) / 100; return (v > 0 ? '+' : '') + v; };
+    body.innerHTML = '<div class="card"><h2><button class="btn sm ghost" onclick="APP.statMonth=shiftMonth(\'' + m + '\',-1);adStats()">‹</button><span style="font-size:17px">' + Number(m.slice(0, 4)) + ' 年 ' + Number(m.slice(5)) + ' 月</span><button class="btn sm ghost" onclick="APP.statMonth=shiftMonth(\'' + m + '\',1);adStats()">›</button><span class="sp"></span>' +
+      '<span class="row"><button class="btn sm" onclick="statCsv(false)">下載彙總</button><button class="btn sm p" onclick="statCsv(true)">下載明細</button></span></h2>' +
+      (r.rows.length ? '<div class="tw"><table class="t" style="white-space:nowrap"><tr><th>人員</th><th>排定天數</th><th>排定時數</th><th>出勤天數</th><th>實際工時</th><th>差異</th><th>遲到</th><th>早退</th><th>缺卡</th>' + r.kinds.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + '<th>請假合計</th></tr>' +
+        r.rows.map(function (x) {
+          return '<tr><td><b>' + esc(x.name) + '</b></td><td>' + x.schedDays + '</td><td>' + x.schedHours + '</td><td>' + x.workDays + '</td><td><b>' + x.workHours + '</b></td><td>' + diff(x) + '</td><td>' + x.late + '</td><td>' + x.early + '</td><td' + (x.missing ? ' style="color:var(--bad)"' : '') + '>' + x.missing + '</td>' + r.kinds.map(function (k) { return '<td>' + (x.leave[k] || 0) + '</td>'; }).join('') + '<td><b>' + x.leaveHours + '</b></td></tr>';
+        }).join('') + '</table></div>' : '<div class="empty">這個月還沒有資料</div>') +
+      '<div class="muted" style="margin-top:10px">單位：小時。實際工時＝上下班打卡時間差' + (r.lunch ? '，扣午休 ' + esc(r.lunch) : '') + '；缺卡的日子不計工時。請假只算已核可的。</div></div>';
+  });
+}
+function statCsv(detail) {
+  var r = APP.stats, rows;
+  if (detail) {
+    rows = [['日期', '星期', '人員', '排班時段', '上班', '下班', '工時', '請假', '備註']].concat(r.detail.map(function (x) { return [x.date, WD[wdOf(x.date)], x.name, x.shift, x.in, x.out, x.hours || '', x.leave, x.note]; }));
+  } else {
+    rows = [['人員', '排定天數', '排定時數', '出勤天數', '實際工時', '遲到', '早退', '缺卡'].concat(r.kinds).concat(['請假合計'])].concat(r.rows.map(function (x) {
+      return [x.name, x.schedDays, x.schedHours, x.workDays, x.workHours, x.late, x.early, x.missing].concat(r.kinds.map(function (k) { return x.leave[k] || 0; })).concat([x.leaveHours]);
+    }));
+  }
+  downloadCsv(r.month + (detail ? ' 工時請假明細.csv' : ' 工時請假統計.csv'), rows);
+}
+/** Excel 開得起來的 CSV；開頭是 = + - @ 的文字先加單引號，避免被當公式 */
+function downloadCsv(name, rows) {
+  var cell = function (v) { var s = String(v == null ? '' : v); if (typeof v === 'string' && /^[=+\-@]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + rows.map(function (r) { return r.map(cell).join(','); }).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  toast('已下載 ' + name);
 }
 function adReport() {
   var m = APP.repMonth || APP.init.today.slice(0, 7);
@@ -1474,6 +1718,134 @@ function drawReport(r) {
     '</div>';
 }
 function makeDoc(m) { api('api_monthReport', m, true).then(function (r) { toast(r.queued ? '月報產生中，約 1 分鐘後會寄到你的信箱' : '已產生月報文件'); drawReport(r); }); }
+
+/* ---------- 交辦事項 ---------- */
+var TASK_TAG = { '待處理': 'warn', '處理中': 'p', '已完成': 'ok', '已取消': '' };
+function pageTasks() {
+  api('api_listTasks').then(function (list) { APP.tasks = list; drawTasks(); });
+}
+function drawTasks() {
+  var admin = isAdmin(), st = APP.taskSt || 'open';
+  var shown = APP.tasks.filter(function (t) { return st === 'all' || (st === 'open' ? t.status === '待處理' || t.status === '處理中' : t.status === st); });
+  $('main').innerHTML = '<div class="card"><h2>' + (admin ? '公司交辦事項' : '交辦給我的事') + '<select onchange="APP.taskSt=this.value;drawTasks()"><option value="open">未完成</option><option value="已完成"' + (st === '已完成' ? ' selected' : '') + '>已完成</option><option value="已取消"' + (st === '已取消' ? ' selected' : '') + '>已取消</option><option value="all"' + (st === 'all' ? ' selected' : '') + '>全部</option></select><span class="sp"></span>' + (admin ? '<button class="btn p" onclick="taskForm()">新增交辦</button>' : '') + '</h2>' +
+    (shown.length ? '<div class="tw"><table class="t tkt"><tr><th>事項</th><th>交辦人</th><th>負責人</th><th>期限</th><th>優先</th><th>狀態</th></tr>' + shown.map(function (t) {
+      return '<tr onclick="taskDetail(\'' + t.id + '\')"><td class="sy"><b>' + esc(t.title) + '</b></td><td style="white-space:nowrap">' + esc(t.from) + '</td><td style="white-space:nowrap">' + esc(t.owner) + '</td><td style="white-space:nowrap">' + (t.due ? md(t.due) : '—') + (t.overdue ? ' <span class="tag bad">逾期</span>' : '') + '</td><td><span class="tag ' + (t.priority === '高' ? 'bad' : '') + '">' + esc(t.priority) + '</span></td><td><span class="tag ' + TASK_TAG[t.status] + '">' + esc(t.status) + '</span></td></tr>';
+    }).join('') + '</table></div>' : '<div class="empty">沒有交辦事項</div>') + '</div>';
+}
+function taskDetail(id) {
+  var t = APP.tasks.filter(function (x) { return x.id === id; })[0], admin = isAdmin(), open = t.status === '待處理' || t.status === '處理中';
+  modal('<h3><span class="tag ' + TASK_TAG[t.status] + '">' + esc(t.status) + '</span>' + esc(t.title) + '<button class="x" onclick="closeModal()">×</button></h3>' +
+    '<div class="kv"><span>交辦人</span><span>' + esc(t.from) + '</span></div><div class="kv"><span>負責人</span><span>' + esc(t.owner) + '</span></div><div class="kv"><span>期限</span><span>' + (t.due ? esc(t.due) : '未設定') + (t.overdue ? ' <span class="tag bad">逾期</span>' : '') + '</span></div>' +
+    '<div class="kv"><span>登錄</span><span>' + esc(t.creator) + ' ' + esc(t.at) + '</span></div>' +
+    (t.detail ? '<label class="f">內容</label><div class="body">' + esc(t.detail) + '</div>' : '') +
+    (t.log ? '<label class="f">進度紀錄</label><div class="timeline">' + esc(t.log) + '</div>' : '') +
+    (open ? '<label class="f">回報進度</label><textarea id="taT" maxlength="1000"></textarea>' : '') +
+    '<div class="foot">' + (admin ? '<button class="btn bad" style="margin-right:auto" onclick="taskDel(\'' + id + '\')">刪除</button><button class="btn" onclick="taskForm(\'' + id + '\')">修改</button>' + (open ? '<button class="btn" onclick="taskAct(\'' + id + '\',\'cancel\')">取消交辦</button>' : '<button class="btn" onclick="taskAct(\'' + id + '\',\'reopen\')">重新開啟</button>') : '') +
+    (open ? '<button class="btn" onclick="taskAct(\'' + id + '\',\'note\')">送出進度</button><button class="btn ok" onclick="taskAct(\'' + id + '\',\'done\')">完成</button>' : '') + '</div>');
+}
+function taskAct(id, a) {
+  api('api_taskAction', id, a, val('taT')).then(function () { closeModal(); toast('已更新'); pageTasks(); });
+}
+function taskDel(id) { if (confirm('確定刪除這筆交辦事項？')) api('api_taskAction', id, 'delete', '').then(function () { closeModal(); toast('已刪除'); pageTasks(); }); }
+function taskForm(id) {
+  var t = id ? APP.tasks.filter(function (x) { return x.id === id; })[0] : { title: '', detail: '', from: '', ownerEmail: '', due: '', priority: '中' };
+  modal('<h3>' + (id ? '修改交辦' : '新增交辦') + '<button class="x" onclick="closeModal()">×</button></h3>' +
+    '<label class="f">交辦事項 *</label><input id="taN" class="full" maxlength="100" value="' + esc(t.title) + '">' +
+    '<div class="row"><div style="flex:1;min-width:140px"><label class="f">交辦人 *</label><input id="taF" class="full" list="taFs" value="' + esc(t.from) + '"><datalist id="taFs">' + APP.init.taskFrom.map(function (f) { return '<option value="' + esc(f) + '">'; }).join('') + '</datalist></div>' +
+    '<div style="flex:1;min-width:140px"><label class="f">負責人 *</label><select id="taO" class="full"><option value="">請選擇</option>' + personOptions(t.ownerEmail, false) + '</select></div></div>' +
+    '<div class="row"><div style="flex:1;min-width:140px"><label class="f">期限</label><input type="date" id="taD" class="full" value="' + esc(t.due) + '"></div>' +
+    '<div style="flex:1;min-width:140px"><label class="f">優先</label><select id="taP" class="full">' + ['高', '中', '低'].map(function (p) { return '<option' + (t.priority === p ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</select></div></div>' +
+    '<label class="f">內容</label><textarea id="taC" maxlength="2000">' + esc(t.detail) + '</textarea>' +
+    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="taskSave(\'' + esc(id || '') + '\')">儲存並通知</button></div>');
+}
+function taskSave(id) {
+  api('api_saveTask', { id: id, title: val('taN'), from: val('taF'), owner: $('taO').value, due: val('taD'), priority: $('taP').value, detail: $('taC').value }).then(function () { closeModal(); toast('已儲存'); pageTasks(); });
+}
+
+/* ---------- 備品耗材 ---------- */
+function pageStock() {
+  api('api_listStock').then(function (r) { APP.stock = r; drawStock(); });
+}
+function drawStock() {
+  var r = APP.stock, admin = isAdmin(), sub = APP.stockSub || 'items';
+  var html = '<div class="sub"><button class="' + (sub === 'items' ? 'on' : '') + '" onclick="APP.stockSub=\'items\';drawStock()">庫存</button><button class="' + (sub === 'moves' ? 'on' : '') + '" onclick="APP.stockSub=\'moves\';drawStock()">異動紀錄</button></div>';
+  if (sub === 'moves') {
+    html += '<div class="card"><h2>最近異動</h2>' + (r.moves.length ? '<div class="tw"><table class="t" style="white-space:nowrap"><tr><th>時間</th><th>品名</th><th>異動</th><th>數量</th><th>結存</th><th>操作人</th><th>說明</th></tr>' + r.moves.map(function (m) {
+      return '<tr><td>' + esc(m.at.slice(5)) + '</td><td>' + esc(m.name) + '</td><td><span class="tag ' + (m.type === '入庫' ? 'ok' : m.type === '領用' ? 'warn' : 'p') + '">' + esc(m.type) + '</span></td><td>' + m.qty + '</td><td>' + m.after + '</td><td>' + esc(m.by) + '</td><td class="muted">' + esc(m.note) + '</td></tr>';
+    }).join('') + '</table></div>' : '<div class="empty">還沒有異動</div>') + '</div>';
+  } else {
+    var low = r.items.filter(function (x) { return x.low; });
+    if (low.length) html += '<div class="notice warn"><b>' + low.length + ' 項庫存偏低</b>' + low.map(function (x) { return esc(x.name) + ' 剩 ' + x.qty + ' ' + esc(x.unit); }).join('、') + '</div>';
+    html += '<div class="card"><h2>備品與耗材<span class="sp"></span>' + (admin ? '<button class="btn p" onclick="stockForm()">新增品項</button>' : '') + '</h2>' +
+      (r.items.length ? '<div class="tw"><table class="t tkt"><tr><th>類型</th><th>品名</th><th>存放位置</th><th>現有量</th><th>安全存量</th><th></th></tr>' + r.items.map(function (x) {
+        return '<tr' + (x.active ? '' : ' style="opacity:.5"') + '><td><span class="tag">' + esc(x.type) + '</span></td><td><b>' + esc(x.name) + '</b>' + (x.spec ? '<div class="muted">' + esc(x.spec) + '</div>' : '') + '</td><td>' + esc(x.place) + '</td><td style="white-space:nowrap"><b' + (x.low ? ' style="color:var(--bad)"' : '') + '>' + x.qty + '</b> ' + esc(x.unit) + '</td><td>' + x.safe + '</td>' +
+          '<td style="white-space:nowrap"><button class="btn sm" onclick="stockMoveForm(\'' + x.id + '\',\'領用\')">領用</button> <button class="btn sm" onclick="stockMoveForm(\'' + x.id + '\',\'入庫\')">入庫</button>' + (admin ? ' <button class="btn sm ghost" onclick="stockMoveForm(\'' + x.id + '\',\'盤點\')">盤點</button> <button class="btn sm ghost" onclick="stockForm(\'' + x.id + '\')">編輯</button>' : '') + '</td></tr>';
+      }).join('') + '</table></div>' : '<div class="empty">還沒有品項' + (admin ? '，按「新增品項」開始' : '') + '</div>') + '</div>';
+  }
+  $('main').innerHTML = html;
+}
+function stockMoveForm(id, type) {
+  var x = APP.stock.items.filter(function (i) { return i.id === id; })[0];
+  modal('<h3>' + type + '・' + esc(x.name) + '<button class="x" onclick="closeModal()">×</button></h3><div class="muted">目前 ' + x.qty + ' ' + esc(x.unit) + '</div>' +
+    '<label class="f">' + (type === '盤點' ? '實際數量 *' : '數量 *') + '</label><input id="smQ" type="number" min="0" value="' + (type === '盤點' ? x.qty : 1) + '" style="width:120px">' +
+    '<label class="f">說明</label><input id="smN" class="full" placeholder="' + (type === '領用' ? '例：閘門 2 更換' : '') + '">' +
+    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="stockMoveGo(\'' + id + '\',\'' + type + '\')">確定</button></div>');
+}
+function stockMoveGo(id, type) { api('api_stockMove', { id: id, type: type, qty: Number(val('smQ')), note: val('smN') }).then(function () { closeModal(); toast('已更新庫存'); pageStock(); }); }
+function stockForm(id) {
+  var x = id ? APP.stock.items.filter(function (i) { return i.id === id; })[0] : { type: '備品', name: '', spec: '', unit: '個', place: '', safe: 0, qty: 0, note: '', active: true };
+  modal('<h3>' + (id ? '編輯品項' : '新增品項') + '<button class="x" onclick="closeModal()">×</button></h3>' +
+    '<div class="chips">' + ['備品', '耗材'].map(function (t) { return '<label><input type="radio" name="skT" value="' + t + '"' + (x.type === t ? ' checked' : '') + '><span>' + t + '</span></label>'; }).join('') + '</div>' +
+    '<label class="f">品名 *</label><input id="skN" class="full" value="' + esc(x.name) + '">' +
+    '<label class="f">規格</label><input id="skS" class="full" value="' + esc(x.spec) + '">' +
+    '<div class="row"><div><label class="f">單位</label><input id="skU" value="' + esc(x.unit) + '" style="width:90px"></div><div><label class="f">安全存量</label><input id="skF" type="number" min="0" value="' + x.safe + '" style="width:110px"></div>' + (id ? '' : '<div><label class="f">目前數量</label><input id="skQ" type="number" min="0" value="0" style="width:110px"></div>') + '</div>' +
+    '<label class="f">存放位置</label><input id="skP" class="full" value="' + esc(x.place) + '"><label class="f">備註</label><input id="skO" class="full" value="' + esc(x.note) + '">' +
+    '<label style="display:block;margin-top:10px"><input type="checkbox" id="skA"' + (x.active ? ' checked' : '') + '> 啟用</label>' +
+    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="stockSave(\'' + esc(id || '') + '\')">儲存</button></div>');
+}
+function stockSave(id) {
+  api('api_saveStock', { id: id, type: document.querySelector('input[name=skT]:checked').value, name: val('skN'), spec: val('skS'), unit: val('skU'), safe: Number(val('skF')) || 0, qty: Number(val('skQ')) || 0, place: val('skP'), note: val('skO'), active: $('skA').checked }).then(function () { closeModal(); toast('已儲存'); pageStock(); });
+}
+
+/* ---------- 公告與討論 ---------- */
+function pageBoard() {
+  api('api_listBoard').then(function (r) { APP.board = r; drawBoard(); });
+}
+function drawBoard() {
+  var r = APP.board, sub = APP.boardSub || 'notice', admin = isAdmin(), me = APP.init.me;
+  var html = '<div class="sub"><button class="' + (sub === 'notice' ? 'on' : '') + '" onclick="APP.boardSub=\'notice\';drawBoard()">公告欄</button><button class="' + (sub === 'talk' ? 'on' : '') + '" onclick="APP.boardSub=\'talk\';drawBoard()">討論區</button></div>';
+  if (sub === 'notice') {
+    html += '<div class="card"><h2>公告<span class="sp"></span>' + (admin ? '<button class="btn p" onclick="noticeForm()">發布公告</button>' : '') + '</h2>' + (r.notices.length ? r.notices.map(function (n) {
+      return '<div class="post"><div class="row"><b>' + esc(n.title) + '</b>' + (n.pinned ? '<span class="tag warn">置頂</span>' : '') + (n.expire && n.expire < APP.init.today ? '<span class="tag">已到期</span>' : '') + '<span class="sp"></span>' + (admin ? '<button class="btn sm ghost" onclick="noticeForm(\'' + n.id + '\')">編輯</button>' : '') + '</div><div class="muted">' + esc(n.by) + ' ' + esc(n.at) + '</div><div class="body">' + esc(n.body) + '</div>' + attList(n.atts) + '</div>';
+    }).join('') : '<div class="empty">目前沒有公告</div>') + '</div>';
+  } else {
+    html += '<div class="card"><h2>討論區<span class="sp"></span><button class="btn p" onclick="topicForm()">發表主題</button></h2>' + (r.topics.length ? r.topics.map(function (t) {
+      return '<div class="post"><div class="row"><b>' + esc(t.title) + '</b><span class="sp"></span>' + (admin || t.email === me.email ? '<button class="btn sm ghost" onclick="talkDel(\'' + t.id + '\')">刪除</button>' : '') + '</div><div class="muted">' + esc(t.name) + ' ' + esc(t.at) + '</div><div class="body">' + esc(t.body) + '</div>' +
+        t.replies.map(function (x) { return '<div class="reply"><div class="row"><b style="font-size:13px">' + esc(x.name) + '</b><span class="muted">' + esc(x.at.slice(5)) + '</span><span class="sp"></span>' + (admin || x.email === me.email ? '<button class="btn sm ghost" onclick="talkDel(\'' + x.id + '\')">刪除</button>' : '') + '</div><div class="body">' + esc(x.body) + '</div></div>'; }).join('') +
+        '<div class="row" style="margin:8px 0 0 12px"><input id="rp_' + t.id + '" placeholder="回覆…" style="flex:1;min-width:0"><button class="btn sm" onclick="talkReply(\'' + t.id + '\')">送出</button></div></div>';
+    }).join('') : '<div class="empty">還沒有討論，按「發表主題」開始</div>') + '</div>';
+  }
+  $('main').innerHTML = html;
+}
+function noticeForm(id) {
+  var n = id ? APP.board.notices.filter(function (x) { return x.id === id; })[0] : { title: '', body: '', pinned: false, expire: '', atts: [] };
+  modal('<h3>' + (id ? '編輯公告' : '發布公告') + '<button class="x" onclick="closeModal()">×</button></h3><label class="f">標題 *</label><input id="nT" class="full" maxlength="100" value="' + esc(n.title) + '">' +
+    '<label class="f">內容</label><textarea id="nB" style="min-height:130px">' + esc(n.body) + '</textarea><label class="f">到期日（過了就不顯示給大家，可空白）</label><input type="date" id="nE" value="' + esc(n.expire) + '">' + attEditor(n.atts) +
+    '<label style="display:block;margin-top:10px"><input type="checkbox" id="nP"' + (n.pinned ? ' checked' : '') + '> 置頂</label><label style="display:block;margin-top:6px"><input type="checkbox" id="nM"' + (id ? '' : ' checked') + '> 同時寄信給所有人</label>' +
+    '<div class="foot">' + (id ? '<button class="btn bad" style="margin-right:auto" onclick="noticeDel(\'' + id + '\')">刪除</button>' : '') + '<button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="noticeSave(\'' + esc(id || '') + '\')">儲存</button></div>');
+}
+function noticeSave(id) {
+  if (APP.attBusy) return toast('檔案還在上傳，請稍等', true);
+  api('api_saveNotice', { id: id, title: val('nT'), body: $('nB').value, expire: val('nE'), pinned: $('nP').checked, mail: $('nM').checked, atts: APP.atts }).then(function () { closeModal(); toast('已儲存'); pageBoard(); });
+}
+function noticeDel(id) { if (confirm('確定刪除這則公告？')) api('api_deleteNotice', id).then(function () { closeModal(); toast('已刪除'); pageBoard(); }); }
+function topicForm() {
+  modal('<h3>發表主題<button class="x" onclick="closeModal()">×</button></h3><label class="f">主題 *</label><input id="dT" class="full" maxlength="100"><label class="f">內容 *</label><textarea id="dB" maxlength="3000" style="min-height:130px"></textarea>' +
+    '<div class="foot"><button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="topicSave()">發表</button></div>');
+}
+function topicSave() { api('api_postDiscuss', { title: val('dT'), body: $('dB').value }).then(function () { closeModal(); toast('已發表'); pageBoard(); }); }
+function talkReply(id) { var b = val('rp_' + id); if (!b) return toast('請填寫內容', true); api('api_postDiscuss', { topic: id, body: b }).then(function () { pageBoard(); }); }
+function talkDel(id) { if (confirm('確定刪除這則留言？')) api('api_deleteDiscuss', id).then(function () { toast('已刪除'); pageBoard(); }); }
 
 boot();
 </script>
