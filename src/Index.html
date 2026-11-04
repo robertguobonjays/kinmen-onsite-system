@@ -238,6 +238,15 @@
     nav .m-more { display: flex; }
     .only-wide { display: none; }
     .only-narrow { display: block; }
+    /* 表格改成一筆一張卡片，每格前面標欄位名稱 */
+    table.t.st, table.t.st tbody, table.t.st tr, table.t.st td { display: block; width: 100%; }
+    table.t.st tr.hd { display: none; }
+    table.t.st tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    table.t.st tr:last-child { border-bottom: 0; }
+    table.t.st td { display: flex; gap: 10px; align-items: baseline; border: 0; padding: 3px 0; white-space: normal !important; max-width: none; }
+    table.t.st td[data-label]::before { content: attr(data-label); flex: none; width: 76px; color: var(--muted); font-size: 12px; }
+    table.t.st td:empty { display: none; }
+    table.t.st td > div { min-width: 0; }
     nav button.on { box-shadow: none; color: var(--primary); }
     nav .dot { top: 5px; right: calc(50% - 16px); }
     main { padding: 14px 12px 90px; }
@@ -270,6 +279,18 @@ var NOAUTH = ['api_login', 'api_googleLogin'];
 var TOKEN_KEY = 'kos_token';
 var LOADER = '<div class="loader"><div class="load-tx"><i></i><i></i><i></i>載入中</div><div class="card"><span class="sk h"></span><span class="sk block"></span></div><div class="card"><span class="sk h"></span><span class="sk"></span><span class="sk w8"></span><span class="sk w6"></span><span class="sk w4"></span></div></div>';
 var PENDING = 0;
+/** 手機上把表格改成卡片：有表頭（第一列全是 th、3 欄以上）的表格，幫每格標上欄位名稱。.nostack 的表格維持左右捲動 */
+function stackTables() {
+  document.querySelectorAll('#main table.t:not(.st):not(.nostack), #modal table.t:not(.st):not(.nostack)').forEach(function (t) {
+    var rows = t.rows, head = rows[0];
+    if (!head || head.cells.length < 3 || Array.prototype.some.call(head.cells, function (c) { return c.tagName !== 'TH'; })) return;
+    var names = Array.prototype.map.call(head.cells, function (c) { return c.textContent.trim(); });
+    head.classList.add('hd');
+    for (var i = 1; i < rows.length; i++) Array.prototype.forEach.call(rows[i].cells, function (c, j) { if (names[j]) c.setAttribute('data-label', names[j]); });
+    t.classList.add('st');
+  });
+}
+if (window.MutationObserver) new MutationObserver(function () { clearTimeout(APP._stk); APP._stk = setTimeout(stackTables, 0); }).observe(document.body, { childList: true, subtree: true });
 function busy(n) { PENDING = Math.max(0, PENDING + n); $('loading').style.display = PENDING ? 'block' : 'none'; }
 function loadFailed() { var l = document.querySelector('.loader'); if (l) l.outerHTML = '<div class="card"><div class="empty">載入失敗<div style="margin-top:10px"><button class="btn" onclick="go(APP.page)">重新載入</button></div></div></div>'; }
 
@@ -894,7 +915,7 @@ function availTable(d) {
     return '<td>' + txt + (on ? '<div class="on">✓ ' + esc(on.start) + '-' + esc(on.end) + '</div>' : '') + '</td>';
   };
   return '<details class="card"' + (d.status === '已發布' ? '' : ' open') + '><summary style="cursor:pointer;font-weight:600">大家填的時段<span class="muted" style="font-weight:normal">　「—」＝沒填，✓＝已指派，點一列指派</span></summary>' +
-    '<div class="tw" style="margin-top:10px"><table class="t avt"><tr><th>日期</th>' + d.staff.map(function (p) { return '<th>' + esc(p.name) + '</th>'; }).join('') + '</tr>' +
+    '<div class="tw" style="margin-top:10px"><table class="t avt nostack"><tr><th>日期</th>' + d.staff.map(function (p) { return '<th>' + esc(p.name) + '</th>'; }).join('') + '</tr>' +
     d.days.map(function (x) { return '<tr onclick="shiftModal(\'' + x.date + '\')"><td>' + md(x.date) + '（' + WD[x.wd] + '）</td>' + d.staff.map(function (p) { return cell(x, p); }).join('') + '</tr>'; }).join('') +
     '</table></div></details>';
 }
