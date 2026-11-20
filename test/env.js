@@ -90,6 +90,8 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(code, ctx);
 const G = ctx;
+const realSetup = ctx.setup; // 測試要驗證寄信，初始化後打開寄信
+ctx.setup = function () { const m = realSetup(); ctx.setSetting_('暫停寄信', '否'); return m; };
 const resetRequest = () => { vm.runInContext('VALS_ = {}; GENS_ = null; HEAD_ = {};', ctx); }; // 模擬下一次請求
 function setNow(s) { FAKE_NOW = new RealDate(s.replace(' ', 'T') + ':00+08:00').getTime(); }
 module.exports = { FDate, G, sheets, mails, props, cache, folders, setNow, resetRequest, as: e => { ACTIVE = e; } };

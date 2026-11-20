@@ -276,6 +276,13 @@ ok(!made.length, 'no reinstall when up to date');
 G.flushQueue();
 
 // ---------- 暫停寄信 ----------
+ok(G.DEFAULT_SETTINGS.find(r => r[0] === '暫停寄信')[1] === '是', 'mail off by default');
+G.setSetting_('暫停寄信', '否'); props['schema'] = '3'; resetRequest();
+G.doPost({ postData: { contents: JSON.stringify({ fn: 'api_publicInfo', args: [] }) } });
+ok(G.getSettings_()['暫停寄信'] === '是' && props['schema'] === '4', 'upgrade from v3 turns mail off');
+G.setSetting_('暫停寄信', '否'); resetRequest();
+G.doPost({ postData: { contents: JSON.stringify({ fn: 'api_publicInfo', args: [] }) } });
+ok(G.getSettings_()['暫停寄信'] === '否', 'only forced once');
 const TAm = G.api_login('admin', 'boss1234').token;
 G.api_saveSettings(TAm, { '暫停寄信': '是' });
 mails.length = 0;
