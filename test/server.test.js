@@ -18,7 +18,7 @@ ok(!!adminPw, 'temp password shown');
 ok(folders['1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1'] && folders['1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1'].subs['SOP文件'], 'subfolders in shared folder');
 G.setup(); // 再跑一次不重複、不重設密碼
 ok(G.readTable_('SOP').length === 14 && G.readTable_('人員').length === 1, 'idempotent setup');
-ok(G.readTable_('設定').length === 16, 'settings count ' + G.readTable_('設定').length);
+ok(G.readTable_('設定').length === 17, 'settings count ' + G.readTable_('設定').length);
 
 // ---------- 登入 ----------
 expectErr(() => G.api_init('x'), 'no token', /NEED_LOGIN/);

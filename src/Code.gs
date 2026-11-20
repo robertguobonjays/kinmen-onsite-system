@@ -48,6 +48,7 @@ var DEFAULT_SETTINGS = [
   ['系統網址', '', '系統網頁網址（Vercel 網址），信件裡的連結會用這個（空白則自動抓）'],
   ['檔案資料夾ID', '1GJbVi85Fbp3KOe6Z4_3wP3bBjgogN2T1', '照片、月報、SOP 附件存放的雲端硬碟資料夾'],
   ['登入有效天數', '14', '登入後幾天內不用重新登入'],
+  ['暫停寄信', '否', '填「是」系統就不寄任何信（提醒、通知、帳號密碼信都不寄）；改回「否」恢復'],
   ['午休時間', '12:00～13:00', '計算工時與請假時數時扣除；不扣就留空白'],
   ['假別', '特休,事假,病假,公假,婚假,喪假,補休,其他', '請假可選的假別，用逗號分開'],
   ['交辦人選項', '蔡總,副總,處長,主管', '交辦事項可選的交辦人，用逗號分開（也可以直接打字）']
@@ -519,6 +520,7 @@ function mail_(to, subject, html) {
     .filter(function (x, i, a) { return x && a.indexOf(x) === i; });
   if (!list.length) return;
   var s = getSettings_(), url = appUrl_();
+  if (/^(是|Y|y|yes|true|1)$/.test(String(s['暫停寄信'] || '').trim())) { console.log('暫停寄信，略過：' + subject); return; }
   var body = '<div style="font-family:Microsoft JhengHei,PingFang TC,sans-serif;font-size:14px;line-height:1.7;color:#222">' +
     html + (url ? '<p style="margin-top:20px"><a href="' + url + '" style="background:#0b5cad;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none">開啟' + esc_(s['系統名稱']) + '</a></p>' : '') +
     '<p style="color:#888;font-size:12px">此信由系統自動寄出。</p></div>';

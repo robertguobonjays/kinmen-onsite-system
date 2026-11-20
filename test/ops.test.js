@@ -275,5 +275,15 @@ G.doPost({ postData: { contents: JSON.stringify({ fn: 'api_publicInfo', args: []
 ok(!made.length, 'no reinstall when up to date');
 G.flushQueue();
 
+// ---------- 暫停寄信 ----------
+const TAm = G.api_login('admin', 'boss1234').token;
+G.api_saveSettings(TAm, { '暫停寄信': '是' });
+mails.length = 0;
+G.api_saveNotice(TAm, { title: '測試', body: 'x', mail: true });
+ok(!mails.length, 'mail paused');
+G.api_saveSettings(TAm, { '暫停寄信': '否' });
+G.api_saveNotice(TAm, { title: '測試2', body: 'x', mail: true });
+ok(mails.length === 1, 'mail resumed');
+
 console.log('通過', pass, '失敗', fail);
 process.exit(fail ? 1 : 0);
